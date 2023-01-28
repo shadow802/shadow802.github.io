@@ -160,6 +160,128 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/" class="post-title-link" itemprop="url">Kubernetes-源码分析kube-controller-manager</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-10-16 10:58:56 / 修改时间：11:12:10" itemprop="dateCreated datePublished" datetime="2021-10-16T10:58:56+08:00">2021-10-16</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>​    理解Kubernetes的Informer机制，对于基于Kubernetes作二次开发，编写一些符合业务场景的controller至关重要。本文通过梳理Kubernetes的controller-manager的实现，对于深入理解使用Informer给予一些启发。</p>
+<h1 id="组件介绍"><a href="#组件介绍" class="headerlink" title="组件介绍"></a>组件介绍</h1><p>​    kube-controller-manager是Kubernetes中controller模式的实现者，承载了许多工作负载的关键逻辑实现。在实际使用的集群中，kube-controller-manager以多副本选主的方式，保证高可用。通过ListWatch api-server对应资源的API。触发事件回调，执行相应的调谐逻辑保证工作负载的状态与用户期望的状态达到最终一致性。</p>
+<p>​    kube-controller-manager作为Kubernetes的关键组件之一，代码相对简单，整体结构基本与自定义controller的实现并无二致。</p>
+<p>​    参照《Kubernetes源码剖析》一书中的这幅图，详细展示了组件之间的关系，笔者在图上作了序号的标记，结合源码在下文中来详细解释。</p>
+<p><img src="code-architecture.png" alt="code-architecture"></p>
+<p>​    </p>
+<p>​    其中包括多个工作组件，之前在《Kubernetes-Operator》中结合具体的场景分析过，本文将从Kubernetes源码的角度，分析官方提供的工作负载（以Deployment为例）各个组件是如何协同工作，数据是如何传递，保存的，事件是如何注册、触发的。</p>
+<blockquote>
+<p><strong>特别说明</strong></p>
+<p>​    本次源码分析，主要为了理清Kubernetes核心组件的整体实现思路，会着重分析一些看源码时候比较迷惑的点， 但并不会局限于全部的实现细节，也不局限于某个版本，因此代码的原本是直接使用下面命令clone的github上最新代码</p>
+<p>​    git clone –depth=1 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes.git%E3%80%82">https://github.com/kubernetes/kubernetes.git。</a></p>
+<p>​    笔者认为，也许代码的实现细节会随着版本的更迭，有所更新，但核心的实现思路并不会有太大变化，只要理清了这些核心的实现，在工作学习中，结合具体场景具体问题再做具体分析，再返回头来深究一些细节，也是会事半功倍的。</p>
+<p>​    源码分析不是一蹉而就的，需要反复阅读，反复考究。温故而知新。</p>
+</blockquote>
+<h1 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h1><p>​    Kubernetes中自带了许多controller，controller-manager负责启动这些controller，具体的调谐逻辑存放在controller中。下面是源码中controller名称和启动方法的对应map。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewControllerInitializers</span><span class="params">(loopMode ControllerLoopMode)</span> <span class="title">map</span>[<span class="title">string</span>]<span class="title">InitFunc</span></span> &#123;</span><br><span class="line">	controllers := <span class="keyword">map</span>[<span class="keyword">string</span>]InitFunc&#123;&#125;</span><br><span class="line">	controllers[<span class="string">&quot;endpoint&quot;</span>] = startEndpointController</span><br><span class="line">	controllers[<span class="string">&quot;endpointslice&quot;</span>] = startEndpointSliceController</span><br><span class="line">	controllers[<span class="string">&quot;endpointslicemirroring&quot;</span>] = startEndpointSliceMirroringController</span><br><span class="line">	controllers[<span class="string">&quot;replicationcontroller&quot;</span>] = startReplicationController</span><br><span class="line">	controllers[<span class="string">&quot;podgc&quot;</span>] = startPodGCController</span><br><span class="line">	controllers[<span class="string">&quot;resourcequota&quot;</span>] = startResourceQuotaController</span><br><span class="line">	controllers[<span class="string">&quot;namespace&quot;</span>] = startNamespaceController</span><br><span class="line">	controllers[<span class="string">&quot;serviceaccount&quot;</span>] = startServiceAccountController</span><br><span class="line">	controllers[<span class="string">&quot;garbagecollector&quot;</span>] = startGarbageCollectorController</span><br><span class="line">	controllers[<span class="string">&quot;daemonset&quot;</span>] = startDaemonSetController</span><br><span class="line">	controllers[<span class="string">&quot;job&quot;</span>] = startJobController</span><br><span class="line">	controllers[<span class="string">&quot;deployment&quot;</span>] = startDeploymentController</span><br><span class="line">	controllers[<span class="string">&quot;replicaset&quot;</span>] = startReplicaSetController</span><br><span class="line">	controllers[<span class="string">&quot;horizontalpodautoscaling&quot;</span>] = startHPAController</span><br><span class="line">	controllers[<span class="string">&quot;disruption&quot;</span>] = startDisruptionController</span><br><span class="line">	controllers[<span class="string">&quot;statefulset&quot;</span>] = startStatefulSetController</span><br><span class="line">	controllers[<span class="string">&quot;cronjob&quot;</span>] = startCronJobController</span><br><span class="line">	controllers[<span class="string">&quot;csrsigning&quot;</span>] = startCSRSigningController</span><br><span class="line">	controllers[<span class="string">&quot;csrapproving&quot;</span>] = startCSRApprovingController</span><br><span class="line">	controllers[<span class="string">&quot;csrcleaner&quot;</span>] = startCSRCleanerController</span><br><span class="line">	controllers[<span class="string">&quot;ttl&quot;</span>] = startTTLController</span><br><span class="line">	controllers[<span class="string">&quot;bootstrapsigner&quot;</span>] = startBootstrapSignerController</span><br><span class="line">	controllers[<span class="string">&quot;tokencleaner&quot;</span>] = startTokenCleanerController</span><br><span class="line">	controllers[<span class="string">&quot;nodeipam&quot;</span>] = startNodeIpamController</span><br><span class="line">	controllers[<span class="string">&quot;nodelifecycle&quot;</span>] = startNodeLifecycleController</span><br><span class="line">	<span class="keyword">if</span> loopMode == IncludeCloudLoops &#123;</span><br><span class="line">		controllers[<span class="string">&quot;service&quot;</span>] = startServiceController</span><br><span class="line">		controllers[<span class="string">&quot;route&quot;</span>] = startRouteController</span><br><span class="line">		controllers[<span class="string">&quot;cloud-node-lifecycle&quot;</span>] = startCloudNodeLifecycleController</span><br><span class="line">		<span class="comment">// <span class="doctag">TODO:</span> volume controller into the IncludeCloudLoops only set.</span></span><br><span class="line">	&#125;</span><br><span class="line">	controllers[<span class="string">&quot;persistentvolume-binder&quot;</span>] = startPersistentVolumeBinderController</span><br><span class="line">	controllers[<span class="string">&quot;attachdetach&quot;</span>] = startAttachDetachController</span><br><span class="line">	controllers[<span class="string">&quot;persistentvolume-expander&quot;</span>] = startVolumeExpandController</span><br><span class="line">	controllers[<span class="string">&quot;clusterrole-aggregation&quot;</span>] = startClusterRoleAggregrationController</span><br><span class="line">	controllers[<span class="string">&quot;pvc-protection&quot;</span>] = startPVCProtectionController</span><br><span class="line">	controllers[<span class="string">&quot;pv-protection&quot;</span>] = startPVProtectionController</span><br><span class="line">	controllers[<span class="string">&quot;ttl-after-finished&quot;</span>] = startTTLAfterFinishedController</span><br><span class="line">	controllers[<span class="string">&quot;root-ca-cert-publisher&quot;</span>] = startRootCACertPublisher</span><br><span class="line">	controllers[<span class="string">&quot;ephemeral-volume&quot;</span>] = startEphemeralVolumeController</span><br><span class="line">	<span class="keyword">if</span> utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) &amp;&amp;</span><br><span class="line">		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) &#123;</span><br><span class="line">		controllers[<span class="string">&quot;storage-version-gc&quot;</span>] = startStorageVersionGCController</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> controllers</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="主线脉络"><a href="#主线脉络" class="headerlink" title="主线脉络"></a>主线脉络</h2><p>​    以DeploymentController为例，代码的主线脉络如下图：</p>
+<p><img src="Kube-Controller-Manager.png" alt="Kube-Controller-Manager"></p>
+<h2 id="关键代码"><a href="#关键代码" class="headerlink" title="关键代码"></a>关键代码</h2><p>​    这部分主要就阅读过程中一些关键的部分进行分析。</p>
+<h3 id="SharedInformers"><a href="#SharedInformers" class="headerlink" title="SharedInformers"></a>SharedInformers</h3><p>​    从上图的主线脉络中可以看出，Controller Manager管理了许多的Controller。不用的Controller负责处理不同工作负载的调谐逻辑，但是他们所使用到的Informer具有共性，同一种资源可能被多个Controller所关注，所以源码中将Infromer的初始化，放在了Controller的实现之外，通过factory中的map数据结构进行去重，然后在Controller Manager的主逻辑中，将Informer启动起来，并且在每个Controller正式执行调谐之前，就需要等待与之关联的infromer资源的数据同步完成。从而保证与Etcd中数据的一致性。</p>
+<p>​    sharedInformer的数据结构：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> sharedIndexInformer <span class="keyword">struct</span> &#123;</span><br><span class="line">	indexer    Indexer</span><br><span class="line">	controller Controller</span><br><span class="line"></span><br><span class="line">	processor             *sharedProcessor</span><br><span class="line">	cacheMutationDetector MutationDetector</span><br><span class="line"></span><br><span class="line">	listerWatcher ListerWatcher</span><br><span class="line"></span><br><span class="line">	...省略...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    其中indexer是本地缓存，processor是用户事件注册、触发的实现。</p>
+<h3 id="关键流程"><a href="#关键流程" class="headerlink" title="关键流程"></a>关键流程</h3><h4 id="ListWatch"><a href="#ListWatch" class="headerlink" title="ListWatch"></a>ListWatch</h4><p>​    先来看一下Delta FIFO的数据结构</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> DeltaFIFO <span class="keyword">struct</span> &#123;</span><br><span class="line">	...省略...</span><br><span class="line"></span><br><span class="line">	<span class="comment">// `items` maps a key to a Deltas.</span></span><br><span class="line">	<span class="comment">// Each such Deltas has at least one Delta.</span></span><br><span class="line">	items <span class="keyword">map</span>[<span class="keyword">string</span>]Deltas</span><br><span class="line"></span><br><span class="line">	<span class="comment">// `queue` maintains FIFO order of keys for consumption in Pop().</span></span><br><span class="line">	<span class="comment">// There are no duplicates in `queue`.</span></span><br><span class="line">	<span class="comment">// A key is in `queue` if and only if it is in `items`.</span></span><br><span class="line">	queue []<span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// populated is true if the first batch of items inserted by Replace() has been populated</span></span><br><span class="line">	<span class="comment">// or Delete/Add/Update/AddIfNotPresent was called first.</span></span><br><span class="line">	populated <span class="keyword">bool</span></span><br><span class="line">	<span class="comment">// initialPopulationCount is the number of items inserted by the first call of Replace()</span></span><br><span class="line">	initialPopulationCount <span class="keyword">int</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// keyFunc is used to make the key used for queued item</span></span><br><span class="line">	<span class="comment">// insertion and retrieval, and should be deterministic.</span></span><br><span class="line">	keyFunc KeyFunc</span><br><span class="line"></span><br><span class="line">	<span class="comment">// knownObjects list keys that are &quot;known&quot; --- affecting Delete(),</span></span><br><span class="line">	<span class="comment">// Replace(), and Resync()</span></span><br><span class="line">	knownObjects KeyListerGetter</span><br><span class="line"></span><br><span class="line">	...省略...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    其中knownObjects对应的就是indexer的数据结构。</p>
+<p>​    根据上图中的数据流程，先来看一下Informer是如何将数据放入Delta FiFO中的，也即是图中序号①所标注的流程。</p>
+<p>​    在2.1主线脉络中，从controllerContext.InformerFactory.Start()开始循环执行注册的SharedInformer的Run方法。 通过Reflector首先进行数据的全量同步，然后根据最新的版本号watch资源的变化，监听到数据变化的事件后，将数据放到Delta FIFO中。</p>
+<p>​    在Reflector的数据处理中，还有一步Rsync的操作，主要负责将indexer中的数据重新同步会Delta FIFO中，重新触发处理事件。</p>
+<p>​    Reflector的数据结构如下:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Reflector <span class="keyword">struct</span> &#123;</span><br><span class="line">	<span class="comment">// name identifies this reflector. By default it will be a file:line if possible.</span></span><br><span class="line">	name <span class="keyword">string</span></span><br><span class="line"></span><br><span class="line">    ...省略...</span><br><span class="line">    </span><br><span class="line">	store Store</span><br><span class="line">	<span class="comment">// listerWatcher is used to perform lists and watches.</span></span><br><span class="line">	listerWatcher ListerWatcher</span><br><span class="line"></span><br><span class="line">	resyncPeriod time.Duration</span><br><span class="line">	<span class="comment">// ShouldResync is invoked periodically and whenever it returns `true` the Store&#x27;s Resync operation is invoked</span></span><br><span class="line">	</span><br><span class="line">    ...省略...</span><br><span class="line">    </span><br><span class="line">	<span class="comment">// lastSyncResourceVersion is the resource version token last</span></span><br><span class="line">	<span class="comment">// observed when doing a sync with the underlying store</span></span><br><span class="line">	<span class="comment">// it is thread safe, but not synchronized with the underlying store</span></span><br><span class="line">	lastSyncResourceVersion <span class="keyword">string</span></span><br><span class="line">	</span><br><span class="line">    ...省略...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    其中store对应的就是Delta FIFO的数据结构。</p>
+<h4 id="本地缓存数据更新"><a href="#本地缓存数据更新" class="headerlink" title="本地缓存数据更新"></a>本地缓存数据更新</h4><p>​    图中序号②本地缓存更新，发生在controller实际从Delta FIFO中pop数据的时候，pop出来的数据首先触发SharedInformer的HandleDeltas，根据事件的类型对indexer进行同步更新，然后通过processor.distribute触发注册的用户自定义的增删改事件，对应图中序号③的方法。</p>
+<h4 id="用户事件注册"><a href="#用户事件注册" class="headerlink" title="用户事件注册"></a>用户事件注册</h4><p>​    在往SharedInformerFactory中注册完SharedInformer后，通过AddEventHandler往SharedInformer中的processor中注册用户回调事件。同时启动对应的run和pop处理方法，负责接收notification触发对应的处理过程。而notification的正是由processor.distribute方法在处理Delta FIFO数据的时候，根据不同的事件类型产生的。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> sharedProcessor <span class="keyword">struct</span> &#123;</span><br><span class="line">	listenersStarted <span class="keyword">bool</span></span><br><span class="line">	listenersLock    sync.RWMutex</span><br><span class="line">	listeners        []*processorListener</span><br><span class="line">	syncingListeners []*processorListener</span><br><span class="line">	clock            clock.Clock</span><br><span class="line">	wg               wait.Group</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="indexer例子"><a href="#indexer例子" class="headerlink" title="indexer例子"></a>indexer例子</h3><p>​    通过源码分析，知道indexer最终是由一个threadSafeMap来实现的，其数据结构如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> threadSafeMap <span class="keyword">struct</span> &#123;</span><br><span class="line">	lock  sync.RWMutex</span><br><span class="line">	items <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// indexers maps a name to an IndexFunc</span></span><br><span class="line">	indexers Indexers</span><br><span class="line">	<span class="comment">// indices maps a name to an Index</span></span><br><span class="line">	indices Indices</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    可以看到除了一个用于存放数据的map，还有两个属性用于协助快速的读取数据。那么这两个属性是如何工作的呢，通过一个例子是用来看一下内部的数据组成：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">   <span class="string">&quot;fmt&quot;</span></span><br><span class="line">   v1 <span class="string">&quot;k8s.io/api/core/v1&quot;</span></span><br><span class="line">   metav1 <span class="string">&quot;k8s.io/apimachinery/pkg/apis/meta/v1&quot;</span></span><br><span class="line">   <span class="string">&quot;k8s.io/client-go/tools/cache&quot;</span></span><br><span class="line">   <span class="string">&quot;strings&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">UsersIndexFunc</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span> <span class="params">([]<span class="keyword">string</span>, error)</span></span>&#123;</span><br><span class="line">   pod := obj.(*v1.Pod)</span><br><span class="line">   usersString := pod.Annotations[<span class="string">&quot;users&quot;</span>]</span><br><span class="line">   <span class="keyword">return</span> strings.Split(usersString, <span class="string">&quot;,&quot;</span>), <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span>&#123;</span><br><span class="line">   index := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers&#123;</span><br><span class="line">      <span class="string">&quot;byUser&quot;</span>: UsersIndexFunc,</span><br><span class="line">   &#125;)</span><br><span class="line"></span><br><span class="line">   pod1 := &amp;v1.Pod&#123;</span><br><span class="line">      ObjectMeta: metav1.ObjectMeta&#123;</span><br><span class="line">         Name: <span class="string">&quot;pod1&quot;</span>,</span><br><span class="line">         Annotations: <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>&#123;</span><br><span class="line">            <span class="string">&quot;users&quot;</span>: <span class="string">&quot;ernie,bert&quot;</span>,</span><br><span class="line">         &#125;,</span><br><span class="line">      &#125;,</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   pod2:= &amp;v1.Pod&#123;</span><br><span class="line">      ObjectMeta: metav1.ObjectMeta&#123;</span><br><span class="line">         Name: <span class="string">&quot;pod2&quot;</span>,</span><br><span class="line">         Annotations: <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>&#123;</span><br><span class="line">            <span class="string">&quot;users&quot;</span>: <span class="string">&quot;bert,oscar&quot;</span>,</span><br><span class="line">         &#125;,</span><br><span class="line">      &#125;,</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   pod3 := &amp;v1.Pod&#123;</span><br><span class="line">      ObjectMeta: metav1.ObjectMeta&#123;</span><br><span class="line">         Name: <span class="string">&quot;pod3&quot;</span>,</span><br><span class="line">         Annotations: <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>&#123;</span><br><span class="line">            <span class="string">&quot;users&quot;</span>: <span class="string">&quot;ernie,elmo&quot;</span>,</span><br><span class="line">         &#125;,</span><br><span class="line">      &#125;,</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   index.Add(pod1)</span><br><span class="line">   index.Add(pod2)</span><br><span class="line">   index.Add(pod3)</span><br><span class="line"></span><br><span class="line">   pods, err := index.ByIndex(<span class="string">&quot;byUser&quot;</span>, <span class="string">&quot;ernie&quot;</span>)</span><br><span class="line">   <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">      <span class="built_in">panic</span>(err)</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">for</span> _, v := <span class="keyword">range</span> pods &#123;</span><br><span class="line">      fmt.Println(v.(*v1.Pod).Name)</span><br><span class="line">   &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    通过分析上述代码，发现</p>
+<p>​    1）Items是本地缓存的map[string]interface{}。</p>
+<p>​    2）indexers注册的是索引器名称和对应的方法（方法parse对象返回查询时候使用的键值列表）。</p>
+<p>​    3）indices是根据注册的索引器，重新组织缓存数据：</p>
+<p>​          第一层使用索引器名称，第二层使用用查询的键值作为key，缓存的数据组装成slice作为value。</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1721,113 +1843,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/" class="post-title-link" itemprop="url">微服务技术-K8s容器资源评测</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2020-12-04 16:21:08" itemprop="dateCreated datePublished" datetime="2020-12-04T16:21:08+08:00">2020-12-04</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-03-09 19:38:49" itemprop="dateModified" datetime="2021-03-09T19:38:49+08:00">2021-03-09</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" itemprop="url" rel="index"><span itemprop="name">微服务</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>​    本文讨论的问题，服务共享平台需要大量动态发布Rest Server，目前首先考虑采用熟悉的技术栈Spring Boot 配合容器在K8s部署实现。在不考虑服务本身访问产生数据流量的情况下（抗流量，想通过副本扩展来应对），测试CPU、内存的消耗情况。        </p>
-<p>​    主要分为两部分：</p>
-<p>​        （1）基于《网关集成实践》中的设计，数据服务的Rest Server的职责，主要是承载数据访问的实际流量，启动后需要将自己上报给注册中心。</p>
-<p>​        （2）Kubernetes部署最低配置</p>
-<h1 id="Java-容器"><a href="#Java-容器" class="headerlink" title="Java 容器"></a>Java 容器</h1><p>​    主要通过限定容器的资源，同时在容器内限定jvm的资源，在保证正常启动，提供简单Rest服务的情况下，测试CPU、内存的临界值。</p>
-<h2 id="Spring-Boot"><a href="#Spring-Boot" class="headerlink" title="Spring Boot"></a>Spring Boot</h2><p>​    demo工程采用的是Spring Boot 2.3.2.RELEASE，集成了Oauth2的Resource Server + Spring Security、Nacos客户端。K8s中部署所使用的yaml文件</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">demo-limit-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">demo-limit</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">demo-limit</span></span><br><span class="line">        <span class="attr">image:</span> <span class="number">10.6</span><span class="number">.1</span><span class="number">.56</span><span class="string">:5000/shadow/demo:8-jre-alpine-v4</span></span><br><span class="line">        <span class="attr">env:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">JAVA_OPTS</span></span><br><span class="line">          <span class="attr">value:</span> <span class="string">&quot;-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=80.0 -XX:+PrintFlagsFinal&quot;</span></span><br><span class="line">        <span class="attr">readinessProbe:</span></span><br><span class="line">          <span class="attr">httpGet:</span></span><br><span class="line">            <span class="attr">path:</span> <span class="string">/health</span></span><br><span class="line">            <span class="attr">port:</span> <span class="number">18888</span></span><br><span class="line">          <span class="attr">initialDelaySeconds:</span> <span class="number">20</span></span><br><span class="line">          <span class="attr">periodSeconds:</span> <span class="number">5</span></span><br><span class="line">        <span class="attr">livenessProbe:</span></span><br><span class="line">          <span class="attr">httpGet:</span></span><br><span class="line">            <span class="attr">path:</span> <span class="string">/health</span></span><br><span class="line">            <span class="attr">port:</span> <span class="number">18888</span></span><br><span class="line">          <span class="attr">initialDelaySeconds:</span> <span class="number">20</span></span><br><span class="line">          <span class="attr">periodSeconds:</span> <span class="number">5</span></span><br><span class="line">        <span class="attr">resources:</span></span><br><span class="line">          <span class="attr">limits:</span></span><br><span class="line">            <span class="attr">cpu:</span> <span class="string">800m</span></span><br><span class="line">            <span class="attr">memory:</span> <span class="string">100Mi</span></span><br><span class="line">          <span class="attr">requests:</span></span><br><span class="line">            <span class="attr">cpu:</span> <span class="string">800m</span></span><br><span class="line">            <span class="attr">memory:</span> <span class="string">100Mi</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">18888</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">demo-limit</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">demo-limit</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">ClusterIP</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">18888</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">18888</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">demo-limit</span></span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>​    制作镜像的Dockerfile</p>
-<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> docker.io/openjdk:<span class="number">8</span>-jre-alpine</span><br><span class="line"></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> ./demo-application.jar /usr/app/</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">WORKDIR</span><span class="bash"> /usr/app</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">RUN</span><span class="bash"> sh -c <span class="string">&#x27;touch demo-application.jar&#x27;</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ENTRYPOINT</span><span class="bash"> java <span class="variable">$JAVA_OPTS</span> -jar demo-application.jar</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>​    jvm的默认堆最大内存会根据主机内存的情况，设置为大约主机内存的1/4。Java8u131+及以后追加了对容器内存cgroup的感知。本文使用的Java版本如下：<img src="container-java-version.jpg" alt="container-java-version"></p>
-<p>​    在开启了UseContainerSupport后，可以通过参数根据容器的资源情况进一步限定内存的占比。</p>
-<p>​    在上述情况下，建议将最小CPU设为600m，将内存设为200Mi，如果CPU过低，会导致java进程无法在指定时间内提供服务，被restart，如果内存设置过低，例如设置为100M以后，会导致容器被OOMKilled</p>
-<p><img src="container-OOMKilled.jpg" alt="container-OOMKilled"></p>
-<p>​    实际运行起来，查看容器资源消耗</p>
-<p><img src="container-spring-limit.jpg" alt="container-spring-limit"></p>
-<h2 id="Java-Servlet"><a href="#Java-Servlet" class="headerlink" title="Java Servlet"></a>Java Servlet</h2><p>​    因为数据服务的Rest Server功能相对单一，主要是从后端存储中获取数据，然后以Rest接口的形式提供服务，Spring占用大量内存，因此考虑是用servlet测试服务本身的资源情况，以期降低消耗。</p>
-<p>​    K8s部署中使用的yaml文件</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">servlet-deployment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">servlet</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">servlet</span></span><br><span class="line">        <span class="attr">image:</span> <span class="number">10.6</span><span class="number">.1</span><span class="number">.56</span><span class="string">:5000/shadow/servlet-demo:v1</span></span><br><span class="line">        <span class="attr">env:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">JAVA_OPTS</span></span><br><span class="line">          <span class="attr">value:</span> <span class="string">&quot;-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=80.0 -XX:+PrintFlagsFinal&quot;</span></span><br><span class="line">        <span class="attr">readinessProbe:</span></span><br><span class="line">          <span class="attr">httpGet:</span></span><br><span class="line">            <span class="attr">path:</span> <span class="string">/servlet-demo/my</span></span><br><span class="line">            <span class="attr">port:</span> <span class="number">8080</span></span><br><span class="line">          <span class="attr">initialDelaySeconds:</span> <span class="number">20</span></span><br><span class="line">          <span class="attr">periodSeconds:</span> <span class="number">5</span></span><br><span class="line">        <span class="attr">livenessProbe:</span></span><br><span class="line">          <span class="attr">httpGet:</span></span><br><span class="line">            <span class="attr">path:</span> <span class="string">/servlet-demo/my</span></span><br><span class="line">            <span class="attr">port:</span> <span class="number">8080</span></span><br><span class="line">          <span class="attr">initialDelaySeconds:</span> <span class="number">20</span></span><br><span class="line">          <span class="attr">periodSeconds:</span> <span class="number">5</span></span><br><span class="line">        <span class="attr">resources:</span></span><br><span class="line">          <span class="attr">limits:</span></span><br><span class="line">            <span class="attr">cpu:</span> <span class="string">300m</span></span><br><span class="line">            <span class="attr">memory:</span> <span class="string">100Mi</span></span><br><span class="line">          <span class="attr">requests:</span></span><br><span class="line">            <span class="attr">cpu:</span> <span class="string">300m</span></span><br><span class="line">            <span class="attr">memory:</span> <span class="string">100Mi</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">8080</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">servlet</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">servlet</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">ClusterIP</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">18080</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">8080</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">servlet</span></span><br></pre></td></tr></table></figure>
-
-<p>​    制作镜像的Dockerfile，在tomcat上为jvm设置参数</p>
-<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> docker.io/tomcat:<span class="number">8</span>-jdk8</span><br><span class="line"></span><br><span class="line"><span class="keyword">COPY</span><span class="bash"> ./servlet-demo.war /usr/<span class="built_in">local</span>/tomcat/webapps/</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ENTRYPOINT</span><span class="bash"> [<span class="string">&quot;/usr/local/tomcat/bin/catalina.sh&quot;</span>, <span class="string">&quot;run&quot;</span>]</span></span><br></pre></td></tr></table></figure>
-
-<p>​    可在容器中，执行jinfo Pid查询JVM的参数是否生效</p>
-<p><img src="container-tomcat-jvm.jpg" alt="container-tomcat-jvm"></p>
-<p>​    在上述情况下，建议将最小cpu设为300m，最小内存设为100Mi，只相当于Spring版本的一半。</p>
-<p>​    查看容器资源消耗</p>
-<p><img src="container-servlet-limit.jpg" alt="container-servlet-limit"></p>
-<h2 id="其它语言"><a href="#其它语言" class="headerlink" title="其它语言"></a>其它语言</h2><p>​    go语言等可能较Java具有更小的资源消耗，和更高的并发支持。因受限于技术栈情况，会增加额外的开发维护成本，暂不考虑go等其它语言实现。</p>
-<h1 id="K8s-部署"><a href="#K8s-部署" class="headerlink" title="K8s 部署"></a>K8s 部署</h1><p>​    K8s 部署方式可以分为：高可用部署、单master集群部署、单节点部署。</p>
-<p>​    高可用部署和单master部署，需要三台及以上节点。K8s自身的服务并不需要太高的资源（根据在虚拟机上的部署经验，通常1核2G就可以运行得很好）。</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1897,7 +1912,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">25</span>
+          <span class="site-state-item-count">26</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -1910,7 +1925,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">48</span>
+        <span class="site-state-item-count">49</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
@@ -1937,7 +1952,7 @@
 <div class="copyright">
   
   &copy; 
-  <span itemprop="copyrightYear">2022</span>
+  <span itemprop="copyrightYear">2023</span>
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
