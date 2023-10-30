@@ -185,7 +185,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2023-10-30 21:50:29 / 修改时间：21:56:13" itemprop="dateCreated datePublished" datetime="2023-10-30T21:50:29+08:00">2023-10-30</time>
+              <time title="创建时间：2023-10-30 21:50:29 / 修改时间：21:59:52" itemprop="dateCreated datePublished" datetime="2023-10-30T21:50:29+08:00">2023-10-30</time>
             </span>
 
           
@@ -238,7 +238,7 @@
 <li><p>-go-grpc_opt=paths=source_relative，输出的grpc.pb.go文件放置与输入文件相同的位置。</p>
 </li>
 </ul>
-<p>    protoc命令根据传递的蚕食会调用protoc-gen-go和protoc-gen-go-grpc插件，生成代码：</p>
+<p>    protoc命令根据传递的参数会调用protoc-gen-go和protoc-gen-go-grpc插件，生成代码：</p>
 <p>            <img src="protoc-generate-go-grpc.jpg"></p>
 <p>    .pb.go包含定义的数据结构；grpc.pb.go包含接口定义和部分公共的grpc的实现代码。</p>
 <h2 id="Server"><a href="#Server" class="headerlink" title="Server"></a>Server</h2><p>    编写gRPC的server代码，实现proto grpc文件中对应Server端interface中的方法。这里需要参照route_grpc.pb.go中的生成的接口定义，实现对应的方法。</p>
