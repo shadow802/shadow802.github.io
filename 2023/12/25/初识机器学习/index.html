@@ -23,34 +23,34 @@
   <meta name="description" content="前言人工智能    人工智能（全称 Artificial Intelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。     AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。 机器学习    机器学习（Machine Lea">
 <meta property="og:type" content="article">
 <meta property="og:title" content="初识机器学习">
-<meta property="og:url" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/index.html">
+<meta property="og:url" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/index.html">
 <meta property="og:site_name" content="Shadow802">
 <meta property="og:description" content="前言人工智能    人工智能（全称 Artificial Intelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。     AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。 机器学习    机器学习（Machine Lea">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/cross-validation.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/linear-regression-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-border.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/MLP.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neural-networks.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/M-P.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/activation-function.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/roc-auc.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svm-roc-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svc-rf-roc-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/k-fold-CV.jpg">
-<meta property="article:published_time" content="2023-12-03T13:16:28.350Z">
-<meta property="article:modified_time" content="2023-12-03T13:21:24.065Z">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/cross-validation.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/linear-regression-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-border.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/MLP.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neural-networks.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/M-P.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/activation-function.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/roc-auc.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svm-roc-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svc-rf-roc-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/k-fold-CV.jpg">
+<meta property="article:published_time" content="2023-12-25T14:54:21.732Z">
+<meta property="article:modified_time" content="2023-12-25T14:54:21.733Z">
 <meta property="article:author" content="Shadow802">
 <meta property="article:tag" content="ML">
 <meta property="article:tag" content="AI">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
 
-<link rel="canonical" href="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
+<link rel="canonical" href="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
 
 
 <script id="page-configurations">
@@ -183,7 +183,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2023/12/03/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -205,9 +205,8 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2023-12-03 21:16:28 / 修改时间：21:21:24" itemprop="dateCreated datePublished" datetime="2023-12-03T21:16:28+08:00">2023-12-03</time>
+              <time title="创建时间：2023-12-25 22:54:21" itemprop="dateCreated datePublished" datetime="2023-12-25T22:54:21+08:00">2023-12-25</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -273,7 +272,7 @@
 <p><img src="cross-validation.jpg"></p>
 <h2 id="模型"><a href="#模型" class="headerlink" title="模型"></a>模型</h2><h3 id="算法"><a href="#算法" class="headerlink" title="算法"></a>算法</h3><p>    机器学习有很多算法，这里只选取几个，稍加分析，以了解整个机器学习的开发流程。</p>
 <h4 id="线性回归-Linear-regression）"><a href="#线性回归-Linear-regression）" class="headerlink" title="线性回归(Linear regression）"></a>线性回归(Linear regression）</h4><p>    线性回归基于一个或多个自变量预测因变量的值，它之所以被称为“线性”，那是因为它假设因变量和自变量之间的关系是线性的。</p>
-<p>    $y=a_1<em>x_1+a_2</em>x_2+a_n*x_N+b$</p>
+<p>    $y=a_1<em>x_1+a_2</em>x_2+a_n*x_n+b$</p>
 <p>    使用线性回归预测糖尿病一年后疾病进展的定量测量指标。</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://scikit-learn.org.cn/view/230.html#</span></span><br><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">from</span> sklearn <span class="keyword">import</span> datasets, linear_model</span><br><span class="line"><span class="keyword">from</span> sklearn.metrics <span class="keyword">import</span> mean_squared_error, r2_score</span><br><span class="line"><span class="keyword">from</span> sklearn.model_selection <span class="keyword">import</span> train_test_split</span><br><span class="line"></span><br><span class="line">X,y = datasets.load_diabetes(return_X_y=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">X = X[:, np.newaxis, <span class="number">2</span>]</span><br><span class="line"></span><br><span class="line">X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=<span class="number">0.2</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">lr = linear_model.LinearRegression()</span><br><span class="line">lr.fit(X_train, y_train)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Make predictions using the testing set</span></span><br><span class="line">y_predict = lr.predict(X_test)</span><br><span class="line"></span><br><span class="line"><span class="comment"># The coefficients</span></span><br><span class="line">print(<span class="string">&#x27;Coefficients: \n&#x27;</span>, lr.coef_)</span><br><span class="line"></span><br><span class="line"><span class="comment"># The mean squared error</span></span><br><span class="line">print(<span class="string">&#x27;Mean squared error: %.2f&#x27;</span> % mean_squared_error(y_test, y_predict))</span><br><span class="line"></span><br><span class="line"><span class="comment"># The coefficient of determination: 1 is perfect prediction</span></span><br><span class="line">print(<span class="string">&#x27;Coefficient of determination: %.2f&#x27;</span> % r2_score(y_test, y_predict))</span><br><span class="line"></span><br><span class="line"><span class="comment"># Plot outputs</span></span><br><span class="line">plt.scatter(X_test, y_test,  color=<span class="string">&#x27;black&#x27;</span>)</span><br><span class="line">plt.plot(X_test, y_predict, color=<span class="string">&#x27;blue&#x27;</span>, linewidth=<span class="number">3</span>)</span><br><span class="line"></span><br><span class="line">plt.xticks(())</span><br><span class="line">plt.yticks(())</span><br><span class="line"></span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure>
 
@@ -370,10 +369,7 @@
     <a href="/2023/10/30/%E4%BD%BF%E7%94%A8ProtoBuffers%E5%92%8CGolang%E7%BC%96%E5%86%99gRPC%E6%9C%8D%E5%8A%A1/" rel="prev" title="使用ProtoBuffers和Golang编写gRPC服务">
       <i class="fa fa-chevron-left"></i> 使用ProtoBuffers和Golang编写gRPC服务
     </a></div>
-      <div class="post-nav-item">
-    <a href="/2023/12/03/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/" rel="next" title="ServiceMesh-Istio网关模式">
-      ServiceMesh-Istio网关模式 <i class="fa fa-chevron-right"></i>
-    </a></div>
+      <div class="post-nav-item"></div>
     </div>
       </footer>
     
