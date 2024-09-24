@@ -185,7 +185,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-09-24 19:59:37 / 修改时间：20:34:56" itemprop="dateCreated datePublished" datetime="2024-09-24T19:59:37+08:00">2024-09-24</time>
+              <time title="创建时间：2024-09-24 19:59:37 / 修改时间：20:42:57" itemprop="dateCreated datePublished" datetime="2024-09-24T19:59:37+08:00">2024-09-24</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -237,8 +237,7 @@
 <p><img src="lua-cosocket.png"></p>
 <p>    OpenResty以此为基础，提供了大量在Lua中使用网络操作的<a target="_blank" rel="noopener" href="https://github.com/openresty/lua-nginx-module?tab=readme-ov-file#description">cosocket api</a>。</p>
 <p><img src="cosoket-api.jpg"></p>
-<p>想·## Apisix</p>
-<h3 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h3><p>    因此前对OpenResty和Lua知之甚少，为能更好地理解Apisix与OpenResty、Nginx、Lua几者之间的关联，梳理了Apisix的总体启动代码，便于深入理解和后续运维查证问题。</p>
+<h2 id="Apisix"><a href="#Apisix" class="headerlink" title="Apisix"></a>Apisix</h2><h3 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h3><p>    因此前对OpenResty和Lua知之甚少，为能更好地理解Apisix与OpenResty、Nginx、Lua几者之间的关联，梳理了Apisix的总体启动代码，便于深入理解和后续运维查证问题。</p>
 <p><img src="apisix-code-start.jpg"></p>
 <p>    总体上看，Apisix的启动，最终转换成了OpenResty的启动，并通过模版维护了nginx.conf的配置文件，在nginx.conf的配置文件中，通过Nginx的Lua扩展能力，在整个Nginx和用户请求的生命周期的不同位置分别进行插桩，并调用了Apisix的相关的Lua代码实现，这一点结合apisix生成的nginx.conf的配置文件（只截取了部分）来看更明显。</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat nginx.conf | grep -C1 &quot;by_lua_block&quot;</span><br></pre></td></tr></table></figure>

@@ -38,7 +38,7 @@
 <meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix-service.jpg">
 <meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/api7ee3-impl.jpg">
 <meta property="article:published_time" content="2024-09-24T11:59:37.063Z">
-<meta property="article:modified_time" content="2024-09-24T12:34:56.325Z">
+<meta property="article:modified_time" content="2024-09-24T12:42:57.107Z">
 <meta property="article:author" content="Shadow802">
 <meta property="article:tag" content="Gateway">
 <meta property="article:tag" content="Apisix">
@@ -204,7 +204,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2024-09-24 19:59:37 / 修改时间：20:34:56" itemprop="dateCreated datePublished" datetime="2024-09-24T19:59:37+08:00">2024-09-24</time>
+              <time title="创建时间：2024-09-24 19:59:37 / 修改时间：20:42:57" itemprop="dateCreated datePublished" datetime="2024-09-24T19:59:37+08:00">2024-09-24</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -256,8 +256,7 @@
 <p><img src="lua-cosocket.png"></p>
 <p>    OpenResty以此为基础，提供了大量在Lua中使用网络操作的<a target="_blank" rel="noopener" href="https://github.com/openresty/lua-nginx-module?tab=readme-ov-file#description">cosocket api</a>。</p>
 <p><img src="cosoket-api.jpg"></p>
-<p>想·## Apisix</p>
-<h3 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h3><p>    因此前对OpenResty和Lua知之甚少，为能更好地理解Apisix与OpenResty、Nginx、Lua几者之间的关联，梳理了Apisix的总体启动代码，便于深入理解和后续运维查证问题。</p>
+<h2 id="Apisix"><a href="#Apisix" class="headerlink" title="Apisix"></a>Apisix</h2><h3 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h3><p>    因此前对OpenResty和Lua知之甚少，为能更好地理解Apisix与OpenResty、Nginx、Lua几者之间的关联，梳理了Apisix的总体启动代码，便于深入理解和后续运维查证问题。</p>
 <p><img src="apisix-code-start.jpg"></p>
 <p>    总体上看，Apisix的启动，最终转换成了OpenResty的启动，并通过模版维护了nginx.conf的配置文件，在nginx.conf的配置文件中，通过Nginx的Lua扩展能力，在整个Nginx和用户请求的生命周期的不同位置分别进行插桩，并调用了Apisix的相关的Lua代码实现，这一点结合apisix生成的nginx.conf的配置文件（只截取了部分）来看更明显。</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat nginx.conf | grep -C1 &quot;by_lua_block&quot;</span><br></pre></td></tr></table></figure>
@@ -415,7 +414,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">2.</span> <span class="nav-text">架构概览</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-number">3.</span> <span class="nav-text">基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#LuaJIT"><span class="nav-number">3.1.</span> <span class="nav-text">LuaJIT</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Cosocket"><span class="nav-number">3.2.</span> <span class="nav-text">Cosocket</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%90%AF%E5%8A%A8"><span class="nav-number">3.2.1.</span> <span class="nav-text">启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8F%92%E4%BB%B6"><span class="nav-number">3.2.2.</span> <span class="nav-text">插件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1"><span class="nav-number">3.2.3.</span> <span class="nav-text">路由</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1"><span class="nav-number">3.2.4.</span> <span class="nav-text">服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">3.2.5.</span> <span class="nav-text">服务发现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%90%BD%E5%9C%B0%E6%96%B9%E6%A1%88"><span class="nav-number">4.</span> <span class="nav-text">落地方案</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">2.</span> <span class="nav-text">架构概览</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-number">3.</span> <span class="nav-text">基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#LuaJIT"><span class="nav-number">3.1.</span> <span class="nav-text">LuaJIT</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Cosocket"><span class="nav-number">3.2.</span> <span class="nav-text">Cosocket</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Apisix"><span class="nav-number">3.3.</span> <span class="nav-text">Apisix</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%90%AF%E5%8A%A8"><span class="nav-number">3.3.1.</span> <span class="nav-text">启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8F%92%E4%BB%B6"><span class="nav-number">3.3.2.</span> <span class="nav-text">插件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1"><span class="nav-number">3.3.3.</span> <span class="nav-text">路由</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1"><span class="nav-number">3.3.4.</span> <span class="nav-text">服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">3.3.5.</span> <span class="nav-text">服务发现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%90%BD%E5%9C%B0%E6%96%B9%E6%A1%88"><span class="nav-number">4.</span> <span class="nav-text">落地方案</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
