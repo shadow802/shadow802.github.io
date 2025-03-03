@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    Java是业务应用开发采用的主流语言，容器化部署K8s平台后，遇到用户反馈的许多模棱两可的问题，特此实验、记录，得出可信的结论。 问题描述环境变量    在一些场景中，需要在镜像的启动命令中使用一些环境变量，以便在镜像运行时传递这些变量改变启动命令中的一些参数，例如Java启动命令中的–spring.profiles.active来设置应用启动时使用的配置文件。 Dockerfile">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java容器化部署杂记">
+<meta property="og:url" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言    Java是业务应用开发采用的主流语言，容器化部署K8s平台后，遇到用户反馈的许多模棱两可的问题，特此实验、记录，得出可信的结论。 问题描述环境变量    在一些场景中，需要在镜像的启动命令中使用一些环境变量，以便在镜像运行时传递这些变量改变启动命令中的一些参数，例如Java启动命令中的–spring.profiles.active来设置应用启动时使用的配置文件。 Dockerfile">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/kubernetes-containers-args.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/kubernetes-containers-command.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/jvm-memory-model.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/pod-resource-cgroup.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/jvm-heap-experiment.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/metric-prometheus.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/jvm_memory_committed_bytes.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/proc-meminfo.png">
+<meta property="article:published_time" content="2022-10-26T16:00:00.000Z">
+<meta property="article:modified_time" content="2022-10-26T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Docker">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="JVM">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/kubernetes-containers-args.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Java容器化部署杂记 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Java容器化部署杂记
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-10-27 00:00:00" itemprop="dateCreated datePublished" datetime="2022-10-27T00:00:00+08:00">2022-10-27</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BF%90%E7%BB%B4%E5%AE%9E%E8%B7%B5/" itemprop="url" rel="index"><span itemprop="name">运维实践</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    Java是业务应用开发采用的主流语言，容器化部署K8s平台后，遇到用户反馈的许多模棱两可的问题，特此实验、记录，得出可信的结论。</p>
+<h1 id="问题描述"><a href="#问题描述" class="headerlink" title="问题描述"></a>问题描述</h1><h2 id="环境变量"><a href="#环境变量" class="headerlink" title="环境变量"></a>环境变量</h2><p>    在一些场景中，需要在镜像的启动命令中使用一些环境变量，以便在镜像运行时传递这些变量改变启动命令中的一些参数，例如Java启动命令中的–spring.profiles.active来设置应用启动时使用的配置文件。</p>
+<h3 id="Dockerfile"><a href="#Dockerfile" class="headerlink" title="Dockerfile"></a>Dockerfile</h3><p>    先来看一下Dockerfile中容器启动命令定义的方式。</p>
+<h4 id="CMD"><a href="#CMD" class="headerlink" title="CMD"></a>CMD</h4><p>    CMD是容器默认的启动命令，CMD的三种使用方式：</p>
+<ul>
+<li><p>CMD [“executable”,”param1”,”param2”] (<em>exec</em> form, this is the preferred form)</p>
+</li>
+<li><p>CMD [“param1”,”param2”] (as <em>default parameters to ENTRYPOINT</em>)</p>
+</li>
+<li><p>CMD command param1 param2 (<em>shell</em> form)</p>
+<p><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/reference/builder/#cmd">Dockerfile reference | Docker Documentation</a></p>
+</li>
+</ul>
+<h4 id="ENTRYPOINT"><a href="#ENTRYPOINT" class="headerlink" title="ENTRYPOINT"></a>ENTRYPOINT</h4><p>    ENTRYPOINT允许为容器定义可执行文件，会优于CMD的shell form和exec form执行。ENTRYPOINT的两种使用方式：</p>
+<ul>
+<li><p>ENTRYPOINT [“executable”, “param1”, “param2”] （<em>exec</em> form） </p>
+</li>
+<li><p>ENTRYPOINT command param1 param2 （<em>shell</em> form）</p>
+<p><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/reference/builder/#entrypoint">Dockerfile reference | Docker Documentation</a></p>
+</li>
+</ul>
+<blockquote>
+<p>exec form不会引入shell进程，因此也不能进行环境变量的替换。</p>
+<p>executable所起的进程会作为容器中Pid=1的进程。</p>
+<p>shell form或者使用sh/bash -c的exec form可以通过使用exec将shell进程替换成启动的进程，使启动进程的Pid=1，接收docker stop发出的SIGTERM信号。 </p>
+</blockquote>
+<h3 id="Runtime"><a href="#Runtime" class="headerlink" title="Runtime"></a>Runtime</h3><h4 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h4><p>    docker run xxxx可直接覆盖CMD定义的执行命令，如果镜像中定义了ENTRYPOINT，run后面的执行指令会作为entrypoint的参数。</p>
+<p>    docker run –entrypoint可覆盖ENTRYPOINT的执行命令。</p>
+<p>    docker run -e/-env key=value可传递环境变量，在镜像启动命令中的如果使用环境变量，需要通过shell包装调起，进行环境变量的替换。其定义方式符合shell的语法规范: </p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span><span class="bash">var</span></span><br><span class="line"><span class="meta">$</span><span class="bash">&#123;var&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="Pod"><a href="#Pod" class="headerlink" title="Pod"></a>Pod</h4><p>    Kubernets的Pod的container定义中存在command和args的启动参数定义，其中环境变量的使用，可以参考kubectl explain中的说明。</p>
+<p><img src="kubernetes-containers-args.png"></p>
+<p><img src="kubernetes-containers-command.png"></p>
+<h2 id="JVM内存"><a href="#JVM内存" class="headerlink" title="JVM内存"></a>JVM内存</h2><p>    首先来看一下JVM的内存模型：</p>
+<p>    <img title="" src="jvm-memory-model.png" alt="" width="415"></p>
+<p>    这里不做深入探讨，简单了解一下各个区域所存放的内容：</p>
+<ul>
+<li><p>堆内存：程序运行的主要内存分配区，是重点关注对象，其中又根据GC的方式划分为不同的区域：新生代、老年代等。</p>
+</li>
+<li><p>方法区：运行时常量池、类型数据。</p>
+</li>
+<li><p>虚拟机栈：局部变量表、操作数栈、动态链接、方法出口。</p>
+</li>
+<li><p>程序计数器。</p>
+</li>
+<li><p>本地方法栈。</p>
+</li>
+</ul>
+<p>    从实际使用来看，又将JVM的内存分为堆内存和堆外内存。下面从一个容器的运行开始，看一下Java应用容器化后，内存信息的相关管理情况。</p>
+<h3 id="申请"><a href="#申请" class="headerlink" title="申请"></a>申请</h3><p>    不论是通过docker通过命令行传递的，还是K8s的Pod的Resource资源配额，本质上都是通过CGroup的虚拟文件系统告诉操作系统，该进程的内存使用控制信息。</p>
+<h4 id="CGroup"><a href="#CGroup" class="headerlink" title="CGroup"></a>CGroup</h4><p>    这里我们通过一个实例来主要看一下内存的设置情况。在K8s集群上部署测试Pod，分配如下资源。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">resources:</span></span><br><span class="line">  <span class="attr">limits:</span></span><br><span class="line">    <span class="attr">cpu:</span> <span class="string">500m</span></span><br><span class="line">    <span class="attr">memory:</span> <span class="string">512Mi</span></span><br><span class="line">  <span class="attr">requests:</span></span><br><span class="line">    <span class="attr">cpu:</span> <span class="string">200m</span></span><br><span class="line">    <span class="attr">memory:</span> <span class="string">256Mi</span></span><br></pre></td></tr></table></figure>
+
+<p>    </p>
+<blockquote>
+<p>cgroup v2是cgroup的下一个版本，对内核和软件的版本有要求，本文还是在cgroup v1上进行测试</p>
+</blockquote>
+<p>    <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/architecture/cgroups/#check-cgroup-version">About cgroup v2 | Kubernetes</a></p>
+<p>    随后查看宿主机上cgroup v1的虚拟文件系统的配置，如下图。</p>
+<p><img src="pod-resource-cgroup.png"></p>
+<p>    cpu、memory的按照如下规则设置：</p>
+<ul>
+<li><p>cpu request * 1024 /1000 = cpu.share。</p>
+<p>cpu.share用来设置 cpu cgroup 子系统对于控制组之间的 cpu 分配比例。默认值是 1024。cpu.shares 以相对比例限制 cgroup 的 cpu。</p>
+</li>
+<li><p>cpu limit=500m：cpu是按照时间片进行划分的，因此cpu.cfs_period_us代表一个时钟周期是100000us，也就是100ms,对应1c，所以500m，cpu.cfs_quota_us=50000us。</p>
+</li>
+<li><p>memory request，没有体现在memory的cgroup中。</p>
+</li>
+<li><p>memory limit = 512Mi = memory.limit_in_bytes=536870912。</p>
+</li>
+</ul>
+<blockquote>
+<p>① 如果没有指定 limit 的话，那么 cfs_quota_us 将会被设置为 <code>-1</code>，即没有限制。</p>
+<p>② 如果 limit 和 request 都没有指定的话，cpu.shares 将会被指定为 <code>2</code>，这个是 cpu.shares 允许指定的小数值了。</p>
+<p>③ 如果没有 limit 的指定的话，memory.limit_in_bytes 将会被指定为一个非常大的值，一般是 2^64 ，可见含义就是不对内存做出限制</p>
+</blockquote>
+<p>    </p>
+<h3 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h3><p>    上述对于容器内资源配额的设置，对于运行在其中的Java进程来说，实际相当于操作系统的资源，JVM在启动的过程中，会根据资源的上限进行内存的划分，这里主要关注堆大小的设置。</p>
+<p>    这里需要说明的，是Java在容器内读取CGroup的内存限制，需要有JDK版本的支持。具体版本的支持方式不同：</p>
+<ol>
+<li><p>JDK 8u131+、JDK 9版本可以设置如下参数指定堆最大内存：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">-XX:+UnlockExperimentalVMOptions #开启实验性参数</span><br><span class="line">-XX:+UseCGroupMemoryLimitForHeap #指定JVM从主机读取cgroup限制</span><br><span class="line">-XX:MaxRAMFraction=int  #服务器内存/jvm最大内存，默认为4，占1/4</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>JDK 8u191+、JDK 10及以上版本可以使用如下参数来动态指定jvm堆内存最大值：</p>
+</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">-XX:+UseContainerSupport #使用容器内存</span><br><span class="line">-XX:MaxRAMPercentage     #使用容器内存百分比</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>-Xmx/-Xms/这种设置堆大小的方式这里不推荐，如果容器的资源配额发生变化，需要手工修改这些值，非常不方便。</p>
+</blockquote>
+<p>    </p>
+<p>    JDK版本对这些参数的支持情况，可通过如下命令查询：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -server -XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+PrintFlagsFinal -version | grep UseContainerSupport </span><br></pre></td></tr></table></figure>
+
+<h4 id="实验测试"><a href="#实验测试" class="headerlink" title="实验测试"></a>实验测试</h4><p>    下面选用JDK 8u242的版本进行实验验证，所使用Pod的资源配额如下，实际调度在一台内存为32G的节点上：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">resources:</span></span><br><span class="line">  <span class="attr">limits:</span></span><br><span class="line">    <span class="attr">memory:</span> <span class="string">850Mi</span></span><br><span class="line">  <span class="attr">requests:</span></span><br><span class="line">    <span class="attr">memory:</span> <span class="string">500Mi</span></span><br></pre></td></tr></table></figure>
+
+<p>    可以看到默认情况下，堆外内存的最大值为224395264=214Mi，大约为850Mi的1/4。使用-XX:MaxRAMPercentage=75.0，再次查看，堆外内存的最大值为668991488=638Mi，大约为850Mi的75%。</p>
+<p><img src="jvm-heap-experiment.png"></p>
+<h3 id="OOM"><a href="#OOM" class="headerlink" title="OOM"></a>OOM</h3><p>    默认情况下，JVM发生OOM后，不会退出，可以检查-XX:+CrashOnOutOfMemoryError和 -XX:ExitOnOutOfMemoryError两个参数的设置。如果需要进行Heap的导出，需要配置-XX:+HeapDumpOnOutOfMemoryError和-XX:HeapDumpPath=$(JVM_DUMP_PATH)两个参数。</p>
+<p>    下面实例启动命令代表在发生JVM的OOM时导出Heap Dump。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -jar -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=xxx.hprof xxx.jar</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>① 如果同时配置了OutOutOfMemoryError的Exit、Crash和HeapDump，则JVM不会退出，只会打印java.lang.OutOfMemoryError: Java heap spac的异常，并导出Heap Dump文件。</p>
+<p>② 发生OutOutOfMemoryError的JVM依然可以正常提供api服务，但是属于不稳定的状态，可能会导致错误的结果，所以最好还是重启它。</p>
+</blockquote>
+<h4 id="健康检查"><a href="#健康检查" class="headerlink" title="健康检查"></a>健康检查</h4><p>    在K8s中是存在健康检查的，通常在实际中，我们使用http请求进行检查，JVM发生oom后，如果配置不退出，是可以正常提供服务的，因此不会发生Pod的重启，也不会将发生OOM的应用提出Service的Endpoint。</p>
+<h3 id="内存查看"><a href="#内存查看" class="headerlink" title="内存查看"></a>内存查看</h3><p>    Kubernetes、Docker、Linux、Prometheus均存在一些指标和命令来查看一个应用的内存情况，这些指标和命令的结果存在差异，令人摸不着头脑，在Java应用中，因为JVM的中还有一层内存模型，所以更为复杂。下面选用一个简单的Java应用，获取这些方式的指标进行分析总结。</p>
+<h4 id="监控指标"><a href="#监控指标" class="headerlink" title="监控指标"></a>监控指标</h4><h5 id="cadvisor"><a href="#cadvisor" class="headerlink" title="cadvisor"></a>cadvisor</h5><p>    Prometheus接入Kubernetes后，有一些代表应用的内存指标，其中最主要的两个指标是：container_memory_rss和container_memory_working_set_bytes。</p>
+<ol>
+<li><p>container_memory_rss = /sys/fs/cgroups/memory/memory.status的total_rss。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> rss常驻内存，不包括被交换出的内存</span></span><br><span class="line">total_rss = anonymous memory + swap cache</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 匿名内存</span></span><br><span class="line">anonymous memory = active_anon + inactive_anon</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>container_memory_working_set_bytes= container_memory_usage_bytes - inactive file。</p>
+<p>这个指标是OOM killer关注的指标。</p>
+</li>
+<li><p>container_memory_usage_bytes=memory.usage_in_bytes。包含文件缓存，在内存紧张时，可以被收回使用。</p>
+<p>container_memory_usage_bytes= container_memory_rss + container_memory_cache + kernel memory</p>
+</li>
+</ol>
+<p><img src="metric-prometheus.png"></p>
+<p>    从上图可以看出container_memory_rss &lt; container_memory_working_set_bytes &lt; container_memory_usage_bytes。</p>
+<p>    container_memory_rss不包含文件缓存所以最小。container_memory_usage_bytes包含所有内存所以最大。</p>
+<h5 id="actuator"><a href="#actuator" class="headerlink" title="actuator"></a>actuator</h5><p>    Spring项目中引入spring-boot-starter-actuator和micrometer-registry-prometheus后，可通过/actuator/prometheus查看监控指标，这里只选取JVM内存的部分。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> HELP jvm_memory_max_bytes The maximum amount of memory <span class="keyword">in</span> bytes that can be used <span class="keyword">for</span> memory management</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> TYPE jvm_memory_max_bytes gauge</span></span><br><span class="line">jvm_memory_max_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Code Cache&quot;,&#125; 2.5165824E8</span><br><span class="line">jvm_memory_max_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Compressed Class Space&quot;,&#125; 1.073741824E9</span><br><span class="line">jvm_memory_max_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Old Gen&quot;,&#125; 2.097152E8</span><br><span class="line">jvm_memory_max_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Survivor Space&quot;,&#125; 524288.0</span><br><span class="line">jvm_memory_max_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Metaspace&quot;,&#125; -1.0</span><br><span class="line">jvm_memory_max_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Eden Space&quot;,&#125; 1.03809024E8</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> HELP jvm_memory_used_bytes The amount of used memory</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> TYPE jvm_memory_used_bytes gauge</span></span><br><span class="line">jvm_memory_used_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Code Cache&quot;,&#125; 1.6600448E7</span><br><span class="line">jvm_memory_used_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Compressed Class Space&quot;,&#125; 4468432.0</span><br><span class="line">jvm_memory_used_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Old Gen&quot;,&#125; 1.100248E7</span><br><span class="line">jvm_memory_used_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Survivor Space&quot;,&#125; 32768.0</span><br><span class="line">jvm_memory_used_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Metaspace&quot;,&#125; 3.768876E7</span><br><span class="line">jvm_memory_used_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Eden Space&quot;,&#125; 3.720336E7</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> HELP jvm_memory_committed_bytes The amount of memory <span class="keyword">in</span> bytes that is committed <span class="keyword">for</span> the Java virtual machine to use</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> TYPE jvm_memory_committed_bytes gauge</span></span><br><span class="line">jvm_memory_committed_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Code Cache&quot;,&#125; 1.8481152E7</span><br><span class="line">jvm_memory_committed_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Compressed Class Space&quot;,&#125; 5029888.0</span><br><span class="line">jvm_memory_committed_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Old Gen&quot;,&#125; 2.097152E8</span><br><span class="line">jvm_memory_committed_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Survivor Space&quot;,&#125; 524288.0</span><br><span class="line">jvm_memory_committed_bytes&#123;application=&quot;shadow&quot;,area=&quot;nonheap&quot;,id=&quot;Metaspace&quot;,&#125; 4.0411136E7</span><br><span class="line">jvm_memory_committed_bytes&#123;application=&quot;shadow&quot;,area=&quot;heap&quot;,id=&quot;PS Eden Space&quot;,&#125; 3.7224448E7</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>jvm_memory_committed_bytes是从操作系统层面预留给JVM的可用内存。</p>
+</blockquote>
+<p><img src="jvm_memory_committed_bytes.png"></p>
+<h4 id="查询命令"><a href="#查询命令" class="headerlink" title="查询命令"></a>查询命令</h4><h5 id="kubectl-top"><a href="#kubectl-top" class="headerlink" title="kubectl top"></a>kubectl top</h5><p>    这里使用的是container_memory_working_set_bytes（不包含pause容器）， 是容器真实使用的内存量，也是 limit限制时的oom 判断依据。</p>
+<h5 id="docker-stats"><a href="#docker-stats" class="headerlink" title="docker stats"></a>docker stats</h5><p>    这里的计算逻辑是container_memory_usage_bytes - container_memory_cache。</p>
+<h5 id="free"><a href="#free" class="headerlink" title="free"></a>free</h5><p>    操作系统的内存使用情况，都记录在/proc/meminfo中，free命令的数据也来源于此。</p>
+<p>    <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man5/proc.5.html">proc(5) - Linux manual page</a></p>
+<p><img src="proc-meminfo.png"></p>
+<h5 id="JVM内存分析"><a href="#JVM内存分析" class="headerlink" title="JVM内存分析"></a>JVM内存分析</h5><h6 id="MAT工具"><a href="#MAT工具" class="headerlink" title="MAT工具"></a>MAT工具</h6><p>    MAT（全名：Memory Analyzer Tool），是一款快速便捷且功能强大丰富的 JVM 堆内存离线分析工具。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">jstack &lt;pid&gt;</span><br><span class="line">jmap dump:live,format=b,file=./map.pprof &lt;pid&gt;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>在容器中，如果Java进程的Pid=1，会报</p>
+<p>1: Unable to get pid of LinuxThreads manager thread。</p>
+</blockquote>
+<h6 id="Arthas"><a href="#Arthas" class="headerlink" title="Arthas"></a>Arthas</h6><p>    <a target="_blank" rel="noopener" href="https://arthas.aliyun.com/">arthas</a>是 Alibaba 开源的 Java 诊断工具，深受开发者喜爱 。</p>
+<h1 id="总结展望"><a href="#总结展望" class="headerlink" title="总结展望"></a>总结展望</h1><p>    因Java应用在容器化过程中，遇到很多棘手的问题：</p>
+<ol>
+<li><p>冷启动时间长</p>
+</li>
+<li><p>内存占用大</p>
+</li>
+<li><p>JVM+OS镜像文件大</p>
+</li>
+</ol>
+<p>    但是Java作为最广泛使用的语言，已存的开发群体和社区资源庞大。 因此也有一些优化方案被提出，改善这些问题，其中Graalvm最为亮眼，Graalvm支持多个编程语言的运行时，并可以将Java代码编译为机器码。</p>
+<p><a target="_blank" rel="noopener" href="https://www.graalvm.org/22.2/docs/getting-started/">GraalVM</a></p>
+<blockquote>
+<p>从GraalVM开始——这是一个高性能的JDK，旨在提高Java应用程序的性能，同时消耗更少的资源。 GraalVM提供了两种运行Java应用程序的方法:在HotSpot JVM上使用Graal即时(JIT)编译器，或者作为预先(AOT)编译的本机可执行文件。 除了Java，它还提供了JavaScript、Ruby、Python和其他一些流行语言的运行时。 GraalVM的多语言功能使得在一个应用程序中混合编程语言成为可能，同时消除了任何外语调用成本。<a target="_blank" rel="noopener" href="https://docs.spring.io/spring-native/docs/current/reference/htmlsingle/">https://docs.spring.io/spring-native/docs/current/reference/htmlsingle/</a></p>
+</blockquote>
+<p><a target="_blank" rel="noopener" href="https://docs.spring.io/spring-native/docs/current/reference/htmlsingle/">Spring Native</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Docker/" rel="tag"># Docker</a>
+              <a href="/tags/Java/" rel="tag"># Java</a>
+              <a href="/tags/JVM/" rel="tag"># JVM</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/" rel="prev" title="Linux Kernel-网络收发包">
+      <i class="fa fa-chevron-left"></i> Linux Kernel-网络收发包
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/" rel="next" title="ServiceMesh-Istio网关模式">
+      ServiceMesh-Istio网关模式 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E6%8F%8F%E8%BF%B0"><span class="nav-number">2.</span> <span class="nav-text">问题描述</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F"><span class="nav-number">2.1.</span> <span class="nav-text">环境变量</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Dockerfile"><span class="nav-number">2.1.1.</span> <span class="nav-text">Dockerfile</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#CMD"><span class="nav-number">2.1.1.1.</span> <span class="nav-text">CMD</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#ENTRYPOINT"><span class="nav-number">2.1.1.2.</span> <span class="nav-text">ENTRYPOINT</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Runtime"><span class="nav-number">2.1.2.</span> <span class="nav-text">Runtime</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Docker"><span class="nav-number">2.1.2.1.</span> <span class="nav-text">Docker</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Pod"><span class="nav-number">2.1.2.2.</span> <span class="nav-text">Pod</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#JVM%E5%86%85%E5%AD%98"><span class="nav-number">2.2.</span> <span class="nav-text">JVM内存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%B3%E8%AF%B7"><span class="nav-number">2.2.1.</span> <span class="nav-text">申请</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#CGroup"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">CGroup</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8"><span class="nav-number">2.2.2.</span> <span class="nav-text">使用</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%9E%E9%AA%8C%E6%B5%8B%E8%AF%95"><span class="nav-number">2.2.2.1.</span> <span class="nav-text">实验测试</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#OOM"><span class="nav-number">2.2.3.</span> <span class="nav-text">OOM</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%81%A5%E5%BA%B7%E6%A3%80%E6%9F%A5"><span class="nav-number">2.2.3.1.</span> <span class="nav-text">健康检查</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%85%E5%AD%98%E6%9F%A5%E7%9C%8B"><span class="nav-number">2.2.4.</span> <span class="nav-text">内存查看</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7%E6%8C%87%E6%A0%87"><span class="nav-number">2.2.4.1.</span> <span class="nav-text">监控指标</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#cadvisor"><span class="nav-number">2.2.4.1.1.</span> <span class="nav-text">cadvisor</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#actuator"><span class="nav-number">2.2.4.1.2.</span> <span class="nav-text">actuator</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E8%AF%A2%E5%91%BD%E4%BB%A4"><span class="nav-number">2.2.4.2.</span> <span class="nav-text">查询命令</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#kubectl-top"><span class="nav-number">2.2.4.2.1.</span> <span class="nav-text">kubectl top</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#docker-stats"><span class="nav-number">2.2.4.2.2.</span> <span class="nav-text">docker stats</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#free"><span class="nav-number">2.2.4.2.3.</span> <span class="nav-text">free</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#JVM%E5%86%85%E5%AD%98%E5%88%86%E6%9E%90"><span class="nav-number">2.2.4.2.4.</span> <span class="nav-text">JVM内存分析</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#MAT%E5%B7%A5%E5%85%B7"><span class="nav-number">2.2.4.2.4.1.</span> <span class="nav-text">MAT工具</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#Arthas"><span class="nav-number">2.2.4.2.4.2.</span> <span class="nav-text">Arthas</span></a></li></ol></li></ol></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93%E5%B1%95%E6%9C%9B"><span class="nav-number">3.</span> <span class="nav-text">总结展望</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

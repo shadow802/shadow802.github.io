@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="K8s监控​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。 ​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。 基础概念（1）CRD（Custom Resource Definition） ​">
+<meta property="og:type" content="article">
+<meta property="og:title" content="监控技术-K8s + Promethues + Grafana方案实践">
+<meta property="og:url" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="K8s监控​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。 ​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。 基础概念（1）CRD（Custom Resource Definition） ​">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-operator.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-crd.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-version.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-pod.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/k8s-hpa-ms.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/etcd-ca.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-etcd-secret.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-etcd-secret-mount.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/etcd-service-info.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/serviceMonitor-endpoints-config.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-target-etcd.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/micrometer-custom.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-springboot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-micrometer-custom.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-external-service.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-external-metrics.jpg">
+<meta property="article:published_time" content="2021-02-02T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-02-02T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Kube Prometheus">
+<meta property="article:tag" content="Actuator">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-operator.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>监控技术-K8s + Promethues + Grafana方案实践 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          监控技术-K8s + Promethues + Grafana方案实践
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-02-03 00:00:00" itemprop="dateCreated datePublished" datetime="2021-02-03T00:00:00+08:00">2021-02-03</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="K8s监控"><a href="#K8s监控" class="headerlink" title="K8s监控"></a>K8s监控</h1><p>​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。</p>
+<p>​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。</p>
+<h2 id="基础概念"><a href="#基础概念" class="headerlink" title="基础概念"></a>基础概念</h2><p>（1）CRD（Custom Resource Definition）</p>
+<p>​    K8s采用的是一种声明式的编程方式，其基本的设计思想是，在K8s中一切都是资源，我们通过yaml/json的文件描述我们所需要的资源的预期的状态，然后通过一个资源控制器（Controller）在集群中采取各种措施（重启、杀掉重建、调度），不断趋向这种用户的预期状态，最终使实际情况达到用户预期。并时刻守护。</p>
+<p>​    K8s提供了一些资源的实现，例如Pod、ConfigMap等。但这些资源描述还不能满足我们所有的需求，因此需要提供一种类似于插件扩展的机制，让用户自己定义并实现资源的描述。</p>
+<p>（2）Operator</p>
+<p>​    对于无状态的应用，我们可以通过Deployment这种控制器很容易地实现扩缩实例数量。但是对于一些有状态的服务，例如mysql、redis这样的有状态服务，实例的扩缩，往往需要进行状态的同步、数据的迁移，而这样的步骤是跟随着组件的不同需要定制化采取不同的步骤，常规的K8s控制器无法一一适配，所幸业界对于许多状态的服务进行了封装和开源，提供出来，供我们在K8s中使用。以本案的Promethues为例。</p>
+<p><img src="prometheus-operator.png" alt="prometheus-operator"></p>
+<p>​    （3） Promethues-Operator  VS Kube-Prometheus</p>
+<p>​    对于K8s的监控，Promethues-Operator只能监控到部分数据，完整的监控能力要使用kube-prometheuses。</p>
+<h2 id="Kube-Prometheus"><a href="#Kube-Prometheus" class="headerlink" title="Kube-Prometheus"></a>Kube-Prometheus</h2><p>​    <a target="_blank" rel="noopener" href="https://github.com/prometheus-operator/kube-prometheus">Github地址</a></p>
+<h3 id="基础介绍"><a href="#基础介绍" class="headerlink" title="基础介绍"></a>基础介绍</h3><p>​    Kube-Prometheus是Prometheus Operator对K8S监控的升级改装。</p>
+<p>​    CRD资源介绍：</p>
+<p>​    （1）Prometheus，定义了Prometheus的部署。</p>
+<p>​    （2）AlertManager，定义了AlertManager的部署。</p>
+<p>​    （3）ServiceMonitor，指定K8S中被监控的Service对象。Operator根据Service关联的endpoint中关联的Pod对象，自动生成Prometheus的scrape配置。</p>
+<p>​    （4）PodMonitor，指定Pod对象，也会自动生成Prometheus的scrape配置。</p>
+<p>​    （5）PrometheusRule，指定Prometheus的alert/record规则，Operator会自动将其转换为文件，提供给Promethues使用。</p>
+<p>​    部署后通过下面命令查看</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get crd |grep coreos.com</span><br></pre></td></tr></table></figure>
+
+<p><img src="kube-prometheus-crd.jpg" alt="kube-prometheus-crd"></p>
+<h3 id="部署实践"><a href="#部署实践" class="headerlink" title="部署实践"></a>部署实践</h3><p>​    kube-prometheus是一个K8S prometheus的监控包或者是库，是使用 <a target="_blank" rel="noopener" href="http://jsonnet.org/">jsonnet</a>编写的。里面预置了一些对K8S组件的监控规则设定和一些dashboard、alert的规则，这些东西有很多是来自 <a target="_blank" rel="noopener" href="https://github.com/kubernetes-monitoring/kubernetes-mixin">kubernetes-mixin project</a>这个项目。</p>
+<p>​    用户可以通过修改代码库中的 <a target="_blank" rel="noopener" href="http://jsonnet.org/">jsonnet</a> 文件，来定制化Kube-Prometheus。然后通过./build.sh example.jsonnet重新生成manifests下的yaml文件。</p>
+<p>​    这里我们直接使用release的版本。</p>
+<p>（1）本例的实验环境是Kubernetes 1.17的版本，所以只能选用release-0.4的版本</p>
+<p><img src="kube-prometheus-version.jpg" alt="kube-prometheus-version"></p>
+<p>（2）Github下载release包，执行如下两条命令</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kubectl apply -f manifests&#x2F;setup&#x2F;</span><br><span class="line">kubectl apply -f manifests&#x2F;</span><br></pre></td></tr></table></figure>
+
+<p>​    </p>
+<p>（3）修改prometheus、grafana、altermanager将对应的Service修改为NodePort，以便在集群外访问。</p>
+<p>​    </p>
+<p>（4）卸载命令</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl delete --ignore-not-found&#x3D;true -f manifests&#x2F; -f manifests&#x2F;setup</span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<h1 id="Prometheus"><a href="#Prometheus" class="headerlink" title="Prometheus"></a>Prometheus</h1><p>​    </p>
+<p>​    通过梳理Kube Prometheus在K8S中通过CRD对Prometheus的实现，来实现几个常用的监控部署。</p>
+<h2 id="基本组件"><a href="#基本组件" class="headerlink" title="基本组件"></a>基本组件</h2><p>​    Kube-Prometheus部署完成后，通过K8S的Pod查询命令来看一下一共有哪些Pod，各自承担的职责。</p>
+<p><img src="kube-prometheus-pod.jpg" alt="kube-prometheus-pod"></p>
+<p>​        从Github的官方文档得知，Kube-Prometheus主要包括一下组件：</p>
+<p>​        （1）高可用的Prometheus，对应图中prometheus-k8s-0/1</p>
+<p>​        （2）高可用的AlertManager，对应图中alertmanager-main-0/1/2</p>
+<p>​        （3）Prometheus Operator，负责Prometheus的扩缩容的控制器，对应图中prometheus-operator-xxxx</p>
+<p>​        （4）Prometheus node-exporter，负责收集主机信息，对应图中node-exporter-xxxxx</p>
+<p>​        （5）<a target="_blank" rel="noopener" href="https://github.com/DirectXMan12/k8s-prometheus-adapter">Prometheus Adapter for Kubernetes Metrics APIs</a>，</p>
+<p>​        从字面意思上可以看出是Kubernetes Metric APIs为了适配Promethues这类数据源所使用的适配器，详细内容我们在HPA一节中详解。</p>
+<p>​        （6）Grafana，UI展示工具，可对接多种数据源，自行配置展示图表。</p>
+<p>​        （7）<a target="_blank" rel="noopener" href="https://github.com/kubernetes/kube-state-metrics">Kube-state-metrics</a>，也是K8S聚合API的一种实现，与Heapster、Metrics Server类似。</p>
+<p>​                                                                        <img src="k8s-hpa-ms.png" alt="k8s-hpa-ms"></p>
+<p>​     </p>
+<h2 id="配置实践"><a href="#配置实践" class="headerlink" title="配置实践"></a>配置实践</h2><h3 id="监控K8S的存储ETCD"><a href="#监控K8S的存储ETCD" class="headerlink" title="监控K8S的存储ETCD"></a>监控K8S的存储ETCD</h3><p>（1）查看ETCD的证书存放位置（/etc/kubernetes/pki/etcd），并将证书信息保存在K8S集群中，供后续Prometheus使用</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kubectl describe  pod etcd-edu3.5-ha-1 -n kube-system</span><br><span class="line">kubectl -n monitoring create secret generic etcd-certs --from-file&#x3D;&#x2F;etc&#x2F;kubernetes&#x2F;pki&#x2F;etcd&#x2F;healthcheck-client.crt --from-file&#x3D;&#x2F;etc&#x2F;kubernetes&#x2F;pki&#x2F;etcd&#x2F;healthcheck-client.key --from-file&#x3D;&#x2F;etc&#x2F;kubernetes&#x2F;pki&#x2F;etcd&#x2F;ca.crt</span><br></pre></td></tr></table></figure>
+
+<p><img src="etcd-ca.jpg" alt="etcd-ca"></p>
+<p>​    </p>
+<p>（2）为Promethues设置ETCD的访问证书，增加如下两行，wq保存，并检查是否已经挂载进Prometheus中去。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl edit prometheus k8s -n monitoring</span><br></pre></td></tr></table></figure>
+
+<p><img src="prometheus-etcd-secret.jpg" alt="prometheus-etcd-secret"></p>
+<p><img src="prometheus-etcd-secret-mount.jpg" alt="prometheus-etcd-secret-mount"></p>
+<p>​    </p>
+<p>（3）查看集群中ETCD的Service对象内容，根据label值创建ServiceMonitor对象，指向ETCD的Service。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kubectl get svc etcd -n kube-system --show-labels</span><br><span class="line">kubectl describe svc etcd -n kube-system</span><br></pre></td></tr></table></figure>
+
+<p><img src="etcd-service-info.jpg" alt="etcd-service-info"></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">monitoring.coreos.com/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ServiceMonitor</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">monitoring</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">namespaceSelector:</span></span><br><span class="line">    <span class="attr">matchNames:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">kube-system</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">k8s-app:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">endpoints:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="string">metrics</span>            <span class="comment"># 对应service的端口名</span></span><br><span class="line">    <span class="attr">scheme:</span> <span class="string">https</span></span><br><span class="line">    <span class="attr">interval:</span> <span class="string">30s</span></span><br><span class="line">    <span class="attr">tlsConfig:</span></span><br><span class="line">      <span class="attr">caFile:</span> <span class="string">/etc/prometheus/secrets/etcd-certs/ca.crt</span></span><br><span class="line">      <span class="attr">certFile:</span> <span class="string">/etc/prometheus/secrets/etcd-certs/healthcheck-client.crt</span></span><br><span class="line">      <span class="attr">keyFile:</span> <span class="string">/etc/prometheus/secrets/etcd-certs/healthcheck-client.key</span></span><br><span class="line">      <span class="attr">insecureSkipVerify:</span> <span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<p>​        endpoints 属性下面可以配置很多抓取的参数，比如 relabel、proxyUrl，tlsConfig 表示用于配置抓取监控数据端点的 tls 认证，由于证书 serverName 和 etcd 中签发的可能不匹配，所以加上了 insecureSkipVerify=true</p>
+<p>​        <img src="serviceMonitor-endpoints-config.png" alt="serviceMonitor-endpoints-config"></p>
+<p>（4）查看Prometheus UI中的Target监控对象</p>
+<p><img src="prometheus-target-etcd.jpg" alt="prometheus-target-etcd"></p>
+<p>​    <a target="_blank" rel="noopener" href="https://www.qikqiak.com/post/prometheus-operator-monitor-etcd/">Prometheus Operator 监控 etcd 集群</a></p>
+<h3 id="监控Spring-Boot应用"><a href="#监控Spring-Boot应用" class="headerlink" title="监控Spring Boot应用"></a>监控Spring Boot应用</h3><p>​    应用启动在K8S中，Kube-Prometheus监控了Pod的资源情况，应用程序中的GVM、QPS等，需要应用内部通过端点暴露给Prometheus来抓取收集。在Spring Boot的技术栈中，Actuator实现了对应用内部数据的暴露。但是暴露出来的数据格式并不符合Prometheus的数据格式，我们需要借助于micrometer-registry-prometheus进行转换。</p>
+<p>​    下面是Github上对于micrometer的说明：</p>
+<blockquote>
+<p>​    An application metrics facade for the most popular monitoring tools. Instrument your code with dimensional metrics with a vendor neutral interface and decide on the monitoring backend at the last minute.</p>
+</blockquote>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/micrometer-metrics/micrometer">micrometer github</a></p>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/micrometer-metrics/micrometer-docs">micrometer doc github</a></p>
+<p>（1）使用micrometer转换actuator的监控数据</p>
+<p>​    需要引入如下依赖，并在应用的配置文件暴露监控端点</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-actuator<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>io.micrometer<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>micrometer-registry-prometheus<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">management:</span></span><br><span class="line">  <span class="attr">endpoints:</span></span><br><span class="line">    <span class="attr">web:</span></span><br><span class="line">      <span class="attr">exposure:</span></span><br><span class="line">        <span class="attr">include:</span> <span class="string">&#x27;*&#x27;</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>（2）使用micrometer自定义监控数据</p>
+<p>​        实验代码清单：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MicrometerCustom</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> MeterRegistry meterRegistry;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Counter lightOrderCounter;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Counter aleOrderCounter;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MicrometerCustom</span><span class="params">(MeterRegistry meterRegistry)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.meterRegistry = meterRegistry;</span><br><span class="line">        initOrderCounters();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">initOrderCounters</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 1 - create a counter</span></span><br><span class="line">        lightOrderCounter = <span class="keyword">this</span>.meterRegistry.counter(<span class="string">&quot;beer.orders&quot;</span>, <span class="string">&quot;type&quot;</span>, <span class="string">&quot;light&quot;</span>);</span><br><span class="line">        <span class="comment">// 2 - create a counter using the fluent API</span></span><br><span class="line">        aleOrderCounter = Counter.builder(<span class="string">&quot;beer.orders&quot;</span>)</span><br><span class="line">                .tag(<span class="string">&quot;type&quot;</span>, <span class="string">&quot;ale&quot;</span>)</span><br><span class="line">                .description(<span class="string">&quot;The number of orders ever placed for Ale beers&quot;</span>)</span><br><span class="line">                .register(meterRegistry);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">orderBeer</span><span class="params">(Order order)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 3 - increment the counter</span></span><br><span class="line">        <span class="keyword">if</span> (<span class="string">&quot;light&quot;</span>.equals(order.getType())) &#123;</span><br><span class="line">            lightOrderCounter.increment(<span class="number">1.0</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (<span class="string">&quot;ale&quot;</span>.equals(order.getType())) &#123;</span><br><span class="line">            aleOrderCounter.increment();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="meta">@EventListener(ApplicationReadyEvent.class)</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">orderBeers</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        Flux.interval(Duration.ofSeconds(<span class="number">2</span>))</span><br><span class="line">                .map(MicrometerCustom::toOrder)</span><br><span class="line">                .doOnEach(o -&gt;<span class="keyword">this</span>.orderBeer(o.get()))</span><br><span class="line">                .subscribe();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> Order <span class="title">toOrder</span><span class="params">(Long l)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">double</span> amount = l % <span class="number">5</span>;</span><br><span class="line">        String type = l % <span class="number">2</span> == <span class="number">0</span> ? <span class="string">&quot;ale&quot;</span> : <span class="string">&quot;light&quot;</span>;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Order(amount, type);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​        </p>
+<p>​    启动服务后，访问/actuator/prometheus，搜索关键字beer_orders_total，如下图</p>
+<p><img src="micrometer-custom.jpg" alt="micrometer-custom"></p>
+<p>​    其他类型指标编写方式，参考micrometer API或者是网上资料，这里仅仅是示意。</p>
+<p>（3）配置Prometheus 的scrape任务</p>
+<p>​    将上述应用打包部署到K8S中，定义ServiceMonitor对象，配置Prometheus的scrape任务。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#ServiceMonitor清单文件</span></span><br><span class="line"></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">gateway</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">edu</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">gateway</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">gateway</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">volumes:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">localtime</span></span><br><span class="line">          <span class="attr">hostPath:</span></span><br><span class="line">            <span class="attr">path:</span> <span class="string">/etc/localtime</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">gateway</span></span><br><span class="line">        <span class="attr">image:</span> <span class="number">10.6</span><span class="number">.6</span><span class="number">.197</span><span class="string">:5000/library/gateway-service:v3</span></span><br><span class="line">        <span class="attr">resources:</span></span><br><span class="line">          <span class="attr">limits:</span></span><br><span class="line">            <span class="attr">cpu:</span> <span class="string">1000m</span></span><br><span class="line">            <span class="attr">memory:</span> <span class="string">800Mi</span></span><br><span class="line">          <span class="attr">requests:</span></span><br><span class="line">            <span class="attr">cpu:</span> <span class="string">1000m</span></span><br><span class="line">            <span class="attr">memory:</span> <span class="string">800Mi</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">18080</span></span><br><span class="line">        <span class="attr">volumeMounts:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">localtime</span></span><br><span class="line">            <span class="attr">mountPath:</span> <span class="string">/etc/localtime</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">gateway</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">edu</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">gateway</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">NodePort</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">18080</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">18080</span></span><br><span class="line">    <span class="attr">nodePort:</span> <span class="number">18080</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">gateway</span></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<p>​    查看Prometheus UI中的监控对象</p>
+<p><img src="prometheus-springboot.jpg" alt="prometheus-springboot"></p>
+<p>​    查看自定义监控指标</p>
+<p><img src="prometheus-micrometer-custom.jpg" alt="prometheus-micrometer-custom"></p>
+<h3 id="监控集群外部服务"><a href="#监控集群外部服务" class="headerlink" title="监控集群外部服务"></a>监控集群外部服务</h3><p>​    假设我们在另一台服务器上有一个外部服务，在18080端口暴露了一些监控数据，我们可以通过<a target="_blank" rel="noopener" href="http://10.6.6.207:18080/metrics%E6%8B%BF%E5%88%B0%E8%BF%99%E4%BA%9B%E7%9B%91%E6%8E%A7%E6%95%B0%E6%8D%AE%E3%80%82">http://10.6.6.207:18080/metrics拿到这些监控数据。</a></p>
+<p>（1）为外部服务创建endpoints和service</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Endpoints</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">external-metrics</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">external</span></span><br><span class="line"><span class="attr">subsets:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">addresses:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">ip:</span> <span class="number">10.6</span><span class="number">.6</span><span class="number">.207</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">metrics</span></span><br><span class="line">      <span class="attr">port:</span> <span class="number">18080</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">      </span><br><span class="line"><span class="meta">---</span></span><br><span class="line"></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">external-metrics</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">external</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">external-metrics</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">metrics</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">18080</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">18080</span>      </span><br></pre></td></tr></table></figure>
+
+<p>​    查看是否创建成功</p>
+<p>​    创建ServiceMonitor资源对象</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">monitoring.coreos.com/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ServiceMonitor</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">external</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">external</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">namespaceSelector:</span></span><br><span class="line">    <span class="attr">matchNames:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">external</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">external-metrics</span></span><br><span class="line">  <span class="attr">endpoints:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="string">metrics</span>             <span class="comment"># 对应service的端口名</span></span><br><span class="line">    <span class="attr">scheme:</span> <span class="string">http</span></span><br><span class="line">    <span class="attr">path:</span> <span class="string">&#x27;/metrics&#x27;</span></span><br><span class="line">    <span class="attr">interval:</span> <span class="string">10s</span></span><br><span class="line">    <span class="attr">honorLabels:</span> <span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>然后查看Prometheus UI页面</p>
+<p><img src="prometheus-external-service.jpg" alt="prometheus-external-service"></p>
+<p>查看（<a target="_blank" rel="noopener" href="http://10.6.6.207:18080/metrics%EF%BC%89%E5%85%B6%E4%B8%AD%E7%9A%84%E6%8C%87%E6%A0%87%EF%BC%8C%E5%8F%91%E7%8E%B0%E5%B7%B2%E7%BB%8F%E6%94%B6%E9%9B%86%E4%B8%8A%E6%9D%A5%E4%BA%86%E3%80%82">http://10.6.6.207:18080/metrics）其中的指标，发现已经收集上来了。</a></p>
+<p><img src="prometheus-external-metrics.jpg" alt="prometheus-external-metrics"></p>
+<p>​    </p>
+<h3 id="告警规则配置"><a href="#告警规则配置" class="headerlink" title="告警规则配置"></a>告警规则配置</h3><h1 id="AlertManager"><a href="#AlertManager" class="headerlink" title="AlertManager"></a>AlertManager</h1><h2 id="基础介绍-1"><a href="#基础介绍-1" class="headerlink" title="基础介绍"></a>基础介绍</h2><h2 id="配置实践-1"><a href="#配置实践-1" class="headerlink" title="配置实践"></a>配置实践</h2><h1 id="Grafana"><a href="#Grafana" class="headerlink" title="Grafana"></a>Grafana</h1><p>​    Grafana支持自定义仪表盘，或者从官网下载开源的仪表搭配方案，直接上载。</p>
+<h2 id="总体介绍"><a href="#总体介绍" class="headerlink" title="总体介绍"></a>总体介绍</h2><h2 id="配置实践-2"><a href="#配置实践-2" class="headerlink" title="配置实践"></a>配置实践</h2>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kube-Prometheus/" rel="tag"># Kube Prometheus</a>
+              <a href="/tags/Actuator/" rel="tag"># Actuator</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/" rel="prev" title="Kubernetes-HPA方案实践">
+      <i class="fa fa-chevron-left"></i> Kubernetes-HPA方案实践
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/" rel="next" title="Go语言基础">
+      Go语言基础 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#K8s%E7%9B%91%E6%8E%A7"><span class="nav-number">1.</span> <span class="nav-text">K8s监控</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5"><span class="nav-number">1.1.</span> <span class="nav-text">基础概念</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Kube-Prometheus"><span class="nav-number">1.2.</span> <span class="nav-text">Kube-Prometheus</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.2.1.</span> <span class="nav-text">基础介绍</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5"><span class="nav-number">1.2.2.</span> <span class="nav-text">部署实践</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Prometheus"><span class="nav-number">2.</span> <span class="nav-text">Prometheus</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E7%BB%84%E4%BB%B6"><span class="nav-number">2.1.</span> <span class="nav-text">基本组件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E5%AE%9E%E8%B7%B5"><span class="nav-number">2.2.</span> <span class="nav-text">配置实践</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7K8S%E7%9A%84%E5%AD%98%E5%82%A8ETCD"><span class="nav-number">2.2.1.</span> <span class="nav-text">监控K8S的存储ETCD</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7Spring-Boot%E5%BA%94%E7%94%A8"><span class="nav-number">2.2.2.</span> <span class="nav-text">监控Spring Boot应用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7%E9%9B%86%E7%BE%A4%E5%A4%96%E9%83%A8%E6%9C%8D%E5%8A%A1"><span class="nav-number">2.2.3.</span> <span class="nav-text">监控集群外部服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%91%8A%E8%AD%A6%E8%A7%84%E5%88%99%E9%85%8D%E7%BD%AE"><span class="nav-number">2.2.4.</span> <span class="nav-text">告警规则配置</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#AlertManager"><span class="nav-number">3.</span> <span class="nav-text">AlertManager</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E4%BB%8B%E7%BB%8D-1"><span class="nav-number">3.1.</span> <span class="nav-text">基础介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E5%AE%9E%E8%B7%B5-1"><span class="nav-number">3.2.</span> <span class="nav-text">配置实践</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Grafana"><span class="nav-number">4.</span> <span class="nav-text">Grafana</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E4%BD%93%E4%BB%8B%E7%BB%8D"><span class="nav-number">4.1.</span> <span class="nav-text">总体介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E5%AE%9E%E8%B7%B5-2"><span class="nav-number">4.2.</span> <span class="nav-text">配置实践</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

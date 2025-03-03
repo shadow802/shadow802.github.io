@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="​    Kubernetes采用声明式的编程模式，为应用开发者屏蔽了底层实现细节，将实现细节下沉给平台的开发者，专业的事情交给专业的人来做，Operator将运维实施中有状态组件的部署经验按照K8S控制器模式封装起来，提供给上层用户使用。 ​    Operator是K8S特性扩展中重要的一环。Operator&#x3D;CRD+Controller。 基础简介工作原理​    Informer架构设计中">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes-Operator">
+<meta property="og:url" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="​    Kubernetes采用声明式的编程模式，为应用开发者屏蔽了底层实现细节，将实现细节下沉给平台的开发者，专业的事情交给专业的人来做，Operator将运维实施中有状态组件的部署经验按照K8S控制器模式封装起来，提供给上层用户使用。 ​    Operator是K8S特性扩展中重要的一环。Operator&#x3D;CRD+Controller。 基础简介工作原理​    Informer架构设计中">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/informer.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/client-go-controller-interaction.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/project-init.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/api-create-log.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/api-tree-1.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/api-tree-2.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/operator-ns-validate.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/webhook-execute-sort.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/kubebuilder-webhook-command.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/kubebuilder-webhook-register.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/make-install-cmd.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/webhook-server-deploy.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/operator-manager-log.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/core-resource-mutate-log.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/crd-example-cud.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/crd-webhook-execute-log.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/code-generator-help.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/code-generator-result.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/example-client-usecase.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/example-informer-usecase.png">
+<meta property="article:published_time" content="2021-07-30T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-07-30T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Operator">
+<meta property="article:tag" content="Kubebuilder">
+<meta property="article:tag" content="CRD">
+<meta property="article:tag" content="Admission Control Webhook">
+<meta property="article:tag" content="Code Generator">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/informer.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes-Operator | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes-Operator
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-07-31 00:00:00" itemprop="dateCreated datePublished" datetime="2021-07-31T00:00:00+08:00">2021-07-31</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​    Kubernetes采用声明式的编程模式，为应用开发者屏蔽了底层实现细节，将实现细节下沉给平台的开发者，专业的事情交给专业的人来做，Operator将运维实施中有状态组件的部署经验按照K8S控制器模式封装起来，提供给上层用户使用。</p>
+<p>​    Operator是K8S特性扩展中重要的一环。Operator=CRD+Controller。</p>
+<h1 id="基础简介"><a href="#基础简介" class="headerlink" title="基础简介"></a>基础简介</h1><h2 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h2><p>​    Informer架构设计中的几个核心组件：<br>（1）Reflector：监控K8S中指定的资源，当资源发生变化时，触发相应的事件（Added、Updated、Deleted），并将<strong>资源对象</strong>存放到本地缓存Delta FIFO中。这是一个Informer的包，使用ListAndWatch完成监听。<br>（2）DeltaFIFO：一个保存资源对象的存储（可以保存操作类型）的先进先出队列，Delta是增量的意思。<br>（3）Indexer：是client-go用来存储操作对象并自带索引功能的本地存储。Reflector从DeltaFIFO中将消费出来的资源对象，存储至Indexer。</p>
+<p><img src="informer.png" alt="informer"></p>
+<p>下面以实际的场景来分析一下：<br>（1）首先我们将用户自定义的crd提交API Server。使K8S了解我们新增的资源对象的schema。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apiextensions.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">CustomResourceDefinition</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">networks.samplecrd.k8s.io</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">group:</span> <span class="string">samplecrd.k8s.io</span></span><br><span class="line">  <span class="attr">version:</span> <span class="string">v1</span></span><br><span class="line">  <span class="attr">names:</span></span><br><span class="line">    <span class="attr">kind:</span> <span class="string">Network</span></span><br><span class="line">    <span class="attr">plural:</span> <span class="string">networks</span></span><br><span class="line">  <span class="attr">scope:</span> <span class="string">Namespaced</span></span><br></pre></td></tr></table></figure>
+
+<p>（2）然后使用这个CRD，创建一个实际的资源对象。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">samplecrd.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Network</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">example-network</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">cidr:</span> <span class="string">&quot;192.168.0.0/16&quot;</span></span><br><span class="line">  <span class="attr">gateway:</span> <span class="string">&quot;192.168.0.1&quot;</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>（3）资源对象（用户期望的状态）存放到ETCD后。Network的Controller是使用Informer始终ListAndWatch Network资源对象的变化。将监听到的资源对象和资源对象的操作类型放入到DeltaFIFO的队列中。</p>
+<p>（4）然后Informer会源源不断地从DeltaFIFO中获取资源对象，并根据操作类型，更新本地Indexer缓存。另外每经过resyncPeriod指定的时间，Informer都会使用最近一次返回的列表数据，强制更新一次缓存（Resync）。这样始终保持缓存与ETCD保持一致。也减少了频繁访问API Server造成的服务器压力。</p>
+<p>（5）另一方面 Informer会根据资源对象的操作类型触发对应的事件回调，将操作对象的key（namespace/name）添加到workqueue中。</p>
+<p>（6）Controller的控制循环启动后，会首先判断是否完成一次Resync。然后并发启动多个Worker处理workqueue里的数据（根据key通过Lister取出对应的API对象）。</p>
+<p><img src="client-go-controller-interaction.jpeg" alt="client-go-controller-interaction"></p>
+<h2 id="脚手架工具"><a href="#脚手架工具" class="headerlink" title="脚手架工具"></a>脚手架工具</h2><p>​    手工编写Operator，门槛较高，需要对K8S的源码和设计架构有深刻的认识，为了让普通开发人员关注自身的实现逻辑，简化Operator的开发，目前业界提供了两个开发Operator的脚手架：Kubebuilder  VS Operator-SDK，核心均依赖于底层的controller-tools和controller-runtime。</p>
+<p>​    Kubebuilder由K8S SIG负责开发维护，而Operator-SDK由CoreOS开发维护。两者目前正进行深度整合。鉴于”亲儿子”的天生优势，本文选择Kubebuilder进行实践。</p>
+<h1 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a>环境搭建</h1><p>​    目前Kubebuilder Github没有提供Windows的二进制文件，曾尝试过在windows平台下载源码打包，但因各种问题，无法进行下去，最终通过在虚拟机中安装Centos7.6操作系统，安装kuberbuilder，成功初始化测试项目。现将步骤整理如下。</p>
+<h2 id="GVM-G"><a href="#GVM-G" class="headerlink" title="GVM/G"></a>GVM/G</h2><p>​    鉴于实际编码中对Go不同版本的切换需求，需要安装一个Go的版本管理器，实现不同版本的安装和切换。windows下采用<a target="_blank" rel="noopener" href="https://github.com/stefanmaric/g">g</a>。linux环境下使用<a target="_blank" rel="noopener" href="https://github.com/moovweb/gvm">gvm</a>。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">##g安装（windows）</span><br><span class="line">1.github上下载g的二进制文件，将其放入环境变量PATH中。</span><br><span class="line">2.新增环境变量G_MIRROR&#x3D;https:&#x2F;&#x2F;golang.google.cn&#x2F;dl&#x2F;</span><br><span class="line">3.在PATH中追加GO的路径，%USERPROFILE%\.g\go\bin，指向g的连接目录。（清除掉其它的go的目录）</span><br><span class="line"></span><br><span class="line">4.常用命令：g ls-remot; g ls; g install gox.xx.x; g use x.xx.xx</span><br><span class="line">注意g use要使用管理员身份打开cmd。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">##gvm安装（linux）</span><br><span class="line">1. bash &lt; &lt;(curl -s -S -L https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;moovweb&#x2F;gvm&#x2F;master&#x2F;binscripts&#x2F;gvm-installer)</span><br><span class="line"></span><br><span class="line">2. 常用命令：gvm listall; gvm list; gvm use gox.xx.xx --default; gvm install gx.xx.xx</span><br><span class="line">如果遇到网络问题无法安装，可以自行下载安装包放入&#x2F;root&#x2F;.gvm&#x2F;archive中，然后执行gvm install gox.xx.xx -B。本例使用root用户登录。</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="Kubebuilder"><a href="#Kubebuilder" class="headerlink" title="Kubebuilder"></a>Kubebuilder</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">curl -L -o kubebuilder https://go.kubebuilder.io/dl/latest/$(go env GOOS)/$(go env GOARCH)</span><br><span class="line">chmod +x kubebuilder &amp;&amp; mv kubebuilder /usr/<span class="built_in">local</span>/bin/</span><br></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://master.book.kubebuilder.io/introduction.html">Kubebuilder</a></p>
+<h2 id="Kustomize"><a href="#Kustomize" class="headerlink" title="Kustomize"></a>Kustomize</h2><p>​    Kubebuilder生成的项目模板中，使用Makefile进行打包、部署、运行，中间会自动下载使用kustomize的二进制文件，无需自行安装。</p>
+<p>​    Kustomize类似于Helm，可以简单理解为一个yaml文件生成工具，可以基于基础yaml模板，配合kustomize的配置文件和语法，分发生成不同环境下的yaml部署文件，解决了K8S部署中，yaml部署文件的多环境配置、生成和版本管理。</p>
+<h2 id="Code-Generator"><a href="#Code-Generator" class="headerlink" title="Code Generator"></a>Code Generator</h2><p>​    生成Kubernetes-style的代码。</p>
+<p>​    生成器包括：</p>
+<ul>
+<li><p><strong>client-gen</strong></p>
+</li>
+<li><p><strong>conversion-gen</strong></p>
+</li>
+<li><p><strong>deepcopy-gen</strong></p>
+</li>
+<li><p>defaulter-gen</p>
+</li>
+<li><p>go-to-protobuf</p>
+</li>
+<li><p>import-boss</p>
+</li>
+<li><p><strong>informer-gen</strong></p>
+</li>
+<li><p><strong>lister-gen</strong></p>
+</li>
+<li><p>openapi-gen</p>
+</li>
+<li><p>register-gen</p>
+</li>
+<li><p>set-gen</p>
+<p>可直接将项目clone到工程中，然后使用对应的脚本生成代码。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/code-generator">Code Generator Github</a></p>
+<p><a target="_blank" rel="noopener" href="https://www.openshift.com/blog/kubernetes-deep-dive-code-generation-customresources">参考资料</a></p>
+</li>
+</ul>
+<h2 id="Windows-Linux-Share-File"><a href="#Windows-Linux-Share-File" class="headerlink" title="Windows/Linux Share File"></a>Windows/Linux Share File</h2><p>​    因为kubebuilder目前不支持windows，因此需要在CentOS虚拟机中进行代码生成，而实际编写代码是在win10下使用Goland。为了避免在两个操作系统之间拷贝文件，直接将win10的目录设置为共享目录，并挂载进Centos的目录下。</p>
+<p>​    1）设置win10的代码目录为共享目录</p>
+<p>​    2）在Centos中使用mount挂载win10的共享目录</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mount -t cifs -o username=&#123;win10登录用户名&#125;,password=&#123;win10登录密码&#125; //&#123;win10主机IP，例如10.190.181.204&#125;/go /root/windows</span><br></pre></td></tr></table></figure>
+
+<p>​    这样就可以实现Linux和Windows共享同一份代码。</p>
+<h1 id="项目实战"><a href="#项目实战" class="headerlink" title="项目实战"></a>项目实战</h1><p>​    使用上述脚手架工具，从头搭建一个项目，进行验证。</p>
+<table>
+<thead>
+<tr>
+<th align="left">名称</th>
+<th align="left">版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">Golang</td>
+<td align="left">1.16.5 linux/amd64</td>
+</tr>
+<tr>
+<td align="left">Kubebuilder</td>
+<td align="left">3.1.0</td>
+</tr>
+<tr>
+<td align="left">Kubernetes</td>
+<td align="left">v1.20.8</td>
+</tr>
+</tbody></table>
+<h2 id="Initialize"><a href="#Initialize" class="headerlink" title="Initialize"></a>Initialize</h2><p>​    首先需要进行项目的初始化，包括go mod init 和 kubebuilder init两个步骤。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">mkdir operator</span><br><span class="line"><span class="built_in">cd</span> operator</span><br><span class="line">go mod init operator</span><br><span class="line">kubebuilder init --domain shadow.io</span><br></pre></td></tr></table></figure>
+
+<p>​    执行后的项目目录如下</p>
+<p><img src="project-init.png" alt="project-init"></p>
+<h2 id="API"><a href="#API" class="headerlink" title="API"></a>API</h2><p>​    创建一个CRD+Controller的模板项目，选择是否创建resource和api，这里均选y。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubebuilder create api --group shadow --version v1 --kind Example</span><br></pre></td></tr></table></figure>
+
+<p>​    执行日志：</p>
+<p><img src="api-create-log.png" alt="api-create-log"></p>
+<p>​    项目目录（第二张图片第一行与第一张图片最后一行是同一个文件）：</p>
+<p><img src="api-tree-1.png" alt="api-tree-1"></p>
+<p><img src="api-tree-2.png" alt="api-tree-2"></p>
+<p>​    项目根目录文件结构：</p>
+<p>​    （1）api：</p>
+<table>
+<thead>
+<tr>
+<th>文件名称</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>example_types.go</td>
+<td>这个是CRD的定义文件，编写自定义CRD的结构。</td>
+</tr>
+<tr>
+<td>groupversion_info.go</td>
+<td>注册CRD的schema、scheme，一般不需要修改。</td>
+</tr>
+<tr>
+<td>zz_generated.deepcopy.go</td>
+<td>controller-gen自动生成的deepcopy方法。不能修改。</td>
+</tr>
+</tbody></table>
+<p>​    （2）bin</p>
+<p>​            执行makefile、kubebuilder等命令，中使用的代码生成器，codegen。</p>
+<p>​    （3）config</p>
+<p>​            存放使用kustomize管理的yaml文件，用作环境部署。还有一些样例yaml，用作测试。</p>
+<p>​    （4）controllers</p>
+<p>​            主要存放controller的实现代码。</p>
+<p>​    （5）hack</p>
+<p>​            代码生成器所使用的文件，例如版权表头文件和一些代码生成的shell脚本。</p>
+<p>​    （6）文件</p>
+<table>
+<thead>
+<tr>
+<th>文件名称</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>.dockerignore、.gitignore</td>
+<td>ignore文件</td>
+</tr>
+<tr>
+<td>Dockerfile</td>
+<td>镜像打包文件</td>
+</tr>
+<tr>
+<td>go.mod、go.sum</td>
+<td>go module的依赖管理文件</td>
+</tr>
+<tr>
+<td>main.go</td>
+<td>项目入口</td>
+</tr>
+<tr>
+<td>Makefile</td>
+<td>编译打包工具，类似于maven</td>
+</tr>
+<tr>
+<td>PROJECT</td>
+<td>项目基本信息</td>
+</tr>
+</tbody></table>
+<p>​    对于实现一个简单的Operator，一般只需要修改:</p>
+<p>​    1）api目录中的CRD文件定义（example_type.go）</p>
+<p>​    2）启动入口文件main.go（例如修改监听的资源类型，过滤掉不需要的事件等）</p>
+<p>​    3）controller目录中的文件（example_controller.go）</p>
+<p>​    其它文件可使用Makefile中的命令，自动更新生成。</p>
+<p>​    使用代码来验证一下Operator是否工作，这里直接使用了最近写的一个demo（这里没有使用到CRD，watch的是核心资源namespace）。</p>
+<p>​    主要需求是使用Spring-Cloud-Kubernetes框架后，在PaaS平台创建Namespace，并将应用部署到K8S后，需要为Namespace下的所有ServiceAccount（包括default）分配资源的API权限，具体可以参考 <a target="_blank" rel="noopener" href="https://cloud.spring.io/spring-cloud-static/spring-cloud-kubernetes/1.1.0.M2/reference/html/#_security_configurations_inside_kubernetes">Spring-Cloud-kubernetes Github 说明</a></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br></pre></td><td class="code"><pre><span class="line">##controllers/ns_controller.<span class="keyword">go</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> controllers</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;context&quot;</span></span><br><span class="line">	rbacv1 <span class="string">&quot;k8s.io/api/rbac/v1&quot;</span></span><br><span class="line">	metav1 <span class="string">&quot;k8s.io/apimachinery/pkg/apis/meta/v1&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/apimachinery/pkg/runtime&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/apimachinery/pkg/types&quot;</span></span><br><span class="line">	ctrl <span class="string">&quot;sigs.k8s.io/controller-runtime&quot;</span></span><br><span class="line">	<span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/client&quot;</span></span><br><span class="line">	<span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/event&quot;</span></span><br><span class="line">	<span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/log&quot;</span></span><br><span class="line">	<span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/predicate&quot;</span></span><br><span class="line"></span><br><span class="line">	corev1 <span class="string">&quot;k8s.io/api/core/v1&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> (</span><br><span class="line">	permissionSkipAnnotation = <span class="string">&quot;permission.k8s.shadow.io/skip&quot;</span></span><br><span class="line">	roleName                 = <span class="string">&quot;spring-cloud-kubernetes-role&quot;</span></span><br><span class="line">	roleBindingsName         = <span class="string">&quot;spring-cloud-kubernetes-role-bindings&quot;</span></span><br><span class="line">	rbacAPIGroup             = <span class="string">&quot;rbac.authorization.k8s.io&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> NamespaceReconciler <span class="keyword">struct</span> &#123;</span><br><span class="line">	client.Client</span><br><span class="line">	Scheme *runtime.Scheme</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=&quot;&quot;,resources=namespaces,verbs=get;update;watch;list</span></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=&quot;rbac.authorization.k8s.io&quot;,resources=roles,verbs=create;bind;escalate</span></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=&quot;rbac.authorization.k8s.io&quot;,resources=rolebindings,verbs=create</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *NamespaceReconciler)</span> <span class="title">Reconcile</span><span class="params">(ctx context.Context, req ctrl.Request)</span> <span class="params">(ctrl.Result, error)</span></span> &#123;</span><br><span class="line">	logger := log.FromContext(ctx)</span><br><span class="line">	logger.Info(<span class="string">&quot;namespace permission reconcile start......&quot;</span>)</span><br><span class="line">	<span class="keyword">defer</span> logger.Info(<span class="string">&quot;namespace permission reconcile end!!!!!!&quot;</span>)</span><br><span class="line"></span><br><span class="line">	ns := &amp;corev1.Namespace&#123;&#125;</span><br><span class="line">	<span class="keyword">if</span> err := r.Get(ctx, req.NamespacedName, ns); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> ctrl.Result&#123;&#125;, client.IgnoreNotFound(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//skip ns when it has been initialized</span></span><br><span class="line">	<span class="keyword">if</span> ns.GetAnnotations()[permissionSkipAnnotation] == <span class="string">&quot;true&quot;</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> ctrl.Result&#123;&#125;, <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//permission init</span></span><br><span class="line">	<span class="keyword">if</span> err := permissionInit(r, ctx, req.NamespacedName); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logger.Error(err, <span class="string">&quot;permission init error&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//annotation record</span></span><br><span class="line">	<span class="keyword">if</span> ns.Annotations != <span class="literal">nil</span> &#123;</span><br><span class="line">		ns.Annotations[permissionSkipAnnotation] = <span class="string">&quot;true&quot;</span></span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		ns.Annotations = <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>&#123;</span><br><span class="line">			permissionSkipAnnotation: <span class="string">&quot;true&quot;</span>,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> err := r.Update(ctx, ns); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		logger.Error(err, <span class="string">&quot;namespace update error&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ctrl.Result&#123;&#125;, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// SetupWithManager sets up the controller with the Manager.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *NamespaceReconciler)</span> <span class="title">SetupWithManager</span><span class="params">(mgr ctrl.Manager)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> ctrl.NewControllerManagedBy(mgr).</span><br><span class="line">		For(&amp;corev1.Namespace&#123;&#125;).</span><br><span class="line">		WithEventFilter(predicate.Funcs&#123;</span><br><span class="line">			<span class="comment">// ignore DeleteEvent</span></span><br><span class="line">			DeleteFunc: <span class="function"><span class="keyword">func</span><span class="params">(event event.DeleteEvent)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">				<span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">			&#125;,</span><br><span class="line">			<span class="comment">// ignore GenericEvent</span></span><br><span class="line">			GenericFunc: <span class="function"><span class="keyword">func</span><span class="params">(event event.GenericEvent)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">				<span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">			&#125;,</span><br><span class="line">			<span class="comment">// ignore UpdateEvent</span></span><br><span class="line">			UpdateFunc: <span class="function"><span class="keyword">func</span><span class="params">(updateEvent event.UpdateEvent)</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">				<span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">			&#125;,</span><br><span class="line">		&#125;).</span><br><span class="line">		Complete(r)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">permissionInit</span><span class="params">(r *NamespaceReconciler, ctx context.Context, namespacedName types.NamespacedName)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	role := &amp;rbacv1.Role&#123;</span><br><span class="line">		ObjectMeta: metav1.ObjectMeta&#123;</span><br><span class="line">			Name:      roleName,</span><br><span class="line">			Namespace: namespacedName.Name,</span><br><span class="line">		&#125;,</span><br><span class="line">		Rules: []rbacv1.PolicyRule&#123;</span><br><span class="line">			&#123;</span><br><span class="line">				APIGroups: []<span class="keyword">string</span>&#123;<span class="string">&quot;&quot;</span>, <span class="string">&quot;extensions&quot;</span>, <span class="string">&quot;apps&quot;</span>&#125;,</span><br><span class="line">				Resources: []<span class="keyword">string</span>&#123;<span class="string">&quot;configmaps&quot;</span>, <span class="string">&quot;pods&quot;</span>, <span class="string">&quot;services&quot;</span>, <span class="string">&quot;endpoints&quot;</span>, <span class="string">&quot;secrets&quot;</span>&#125;,</span><br><span class="line">				Verbs:     []<span class="keyword">string</span>&#123;<span class="string">&quot;get&quot;</span>, <span class="string">&quot;list&quot;</span>, <span class="string">&quot;watch&quot;</span>&#125;,</span><br><span class="line">			&#125;,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> err := r.Create(ctx, role); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	binding := &amp;rbacv1.RoleBinding&#123;</span><br><span class="line">		ObjectMeta: metav1.ObjectMeta&#123;</span><br><span class="line">			Name:      roleBindingsName,</span><br><span class="line">			Namespace: namespacedName.Name,</span><br><span class="line">		&#125;,</span><br><span class="line">		Subjects: []rbacv1.Subject&#123;</span><br><span class="line">			&#123;</span><br><span class="line">				Kind:     <span class="string">&quot;Group&quot;</span>,</span><br><span class="line">				Name:     <span class="string">&quot;system:serviceaccounts:&quot;</span> + namespacedName.Name,</span><br><span class="line">				APIGroup: rbacAPIGroup,</span><br><span class="line">			&#125;,</span><br><span class="line">		&#125;,</span><br><span class="line">		RoleRef: rbacv1.RoleRef&#123;</span><br><span class="line">			Kind:     <span class="string">&quot;Role&quot;</span>,</span><br><span class="line">			Name:     roleName,</span><br><span class="line">			APIGroup: rbacAPIGroup,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> err := r.Create(ctx, binding); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">## main.<span class="keyword">go</span> 中关于controller的注册部分</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> err = (&amp;controllers.NamespaceReconciler&#123;</span><br><span class="line">    Client: mgr.GetClient(),</span><br><span class="line">    Scheme: mgr.GetScheme(),</span><br><span class="line">&#125;).SetupWithManager(mgr); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    setupLog.Error(err, <span class="string">&quot;unable to create controller&quot;</span>, <span class="string">&quot;controller&quot;</span>, <span class="string">&quot;permission&quot;</span>)</span><br><span class="line">    os.Exit(<span class="number">1</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    </p>
+<p>​    在项目目录中，直接执行make run，可以启动controller。看到输出日志。</p>
+<p>​    在集群中创建一个新的ns，然后观察在该ns下是否有对应的role（spring-cloud-kubernetes-role）和rolebindings（spring-cloud-kubernetes-role-rolebindings）生成，而且已经生成的ns上会打上permission.k8s.shadow.io/skip=true的annotation。</p>
+<p>​    <img src="operator-ns-validate.png" alt="operator-ns-validate"></p>
+<h2 id="Webhook"><a href="#Webhook" class="headerlink" title="Webhook"></a>Webhook</h2><p>​    在Kubernetes中，有三种webhook：</p>
+<p>​    1）admission webhook（变更或者是验证）</p>
+<p>​    2）authorization webhook（权限认证）</p>
+<p>​    3）CRD conversion webhook（自定义资源不同版本之间的转换）</p>
+<p>​    这里重点关注admission的webhook。</p>
+<p><img src="webhook-execute-sort.jpg" alt="webhook-execute-sort"></p>
+<p>​        这里可以看出，admission controller的webhook是在Etcd落盘之前进行处理的。而Controller是在Etcd落盘之后，才进行工作的。</p>
+<h3 id="为CRD创建Webhook"><a href="#为CRD创建Webhook" class="headerlink" title="为CRD创建Webhook"></a>为CRD创建Webhook</h3><p>​    使用Kubebuilder创建admission webhook</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kubebuilder create webhook --group shadow --version v1 --kind Example --defaulting --programmatic-validation</span><br><span class="line"></span><br><span class="line"><span class="comment">##可以通过如下命令查看参数kubebuilder create webhook -h</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="kubebuilder-webhook-command.png" alt="kubebuilder-webhook-command"></p>
+<p>​        <strong>kubebuilder不支持为核心类型，生成admission controller</strong></p>
+<p>​    执行完上述命令后，工程中新增了文件：</p>
+<p>​    1）api/v1/{example_webhook.go，webhook_suite_test.go}</p>
+<p>​        可以看到example_webhook.go中实现了controller-runtime中admission包中的defaulter和validator接口。主要用以对pod进行变更和验证。</p>
+<p>​    2）config/webhook目录，主要用以生成webhook的部署yaml</p>
+<p>​    自动生成的代码中已经含有日志输出，可以用来进行简单的验证：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">##defaulter接口实现</span><br><span class="line"><span class="comment">// Default implements webhook.Defaulter so a webhooks will be registered for the type</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *Example)</span> <span class="title">Default</span><span class="params">()</span></span> &#123;</span><br><span class="line">	examplelog.Info(<span class="string">&quot;default&quot;</span>, <span class="string">&quot;name&quot;</span>, r.Name)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// TODO(user): fill in your defaulting logic.</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">##validator接口实现</span><br><span class="line"><span class="comment">// ValidateCreate implements webhook.Validator so a webhooks will be registered for the type</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *Example)</span> <span class="title">ValidateCreate</span><span class="params">()</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	examplelog.Info(<span class="string">&quot;validate create&quot;</span>, <span class="string">&quot;name&quot;</span>, r.Name)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// TODO(user): fill in your validation logic upon object creation.</span></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ValidateUpdate implements webhook.Validator so a webhooks will be registered for the type</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *Example)</span> <span class="title">ValidateUpdate</span><span class="params">(old runtime.Object)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	examplelog.Info(<span class="string">&quot;validate update&quot;</span>, <span class="string">&quot;name&quot;</span>, r.Name)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// TODO(user): fill in your validation logic upon object update.</span></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ValidateDelete implements webhook.Validator so a webhooks will be registered for the type</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *Example)</span> <span class="title">ValidateDelete</span><span class="params">()</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	examplelog.Info(<span class="string">&quot;validate delete&quot;</span>, <span class="string">&quot;name&quot;</span>, r.Name)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// TODO(user): fill in your validation logic upon object deletion.</span></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    Kubebuilder已经自动在入口文件中为我们注入了实现。如下图：</p>
+<p><img src="kubebuilder-webhook-register.png" alt="kubebuilder-webhook-register"></p>
+<h3 id="为核心资源生成Webhook"><a href="#为核心资源生成Webhook" class="headerlink" title="为核心资源生成Webhook"></a>为核心资源生成Webhook</h3><p>​    核心资源的webhook，需要自行编写文件实现controller-runtime中admission包中的webhook接口。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line">##在项目根目录下创建webhook文件夹</span><br><span class="line">cd operator</span><br><span class="line">mkdir -p webhooks</span><br><span class="line"></span><br><span class="line">vim namespaces.<span class="keyword">go</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> webhooks</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;context&quot;</span></span><br><span class="line">	corev1 <span class="string">&quot;k8s.io/api/core/v1&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/apimachinery/pkg/util/json&quot;</span></span><br><span class="line">	<span class="string">&quot;net/http&quot;</span></span><br><span class="line">	<span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/client&quot;</span></span><br><span class="line">	<span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/webhook/admission&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> namespacesAnnotator <span class="keyword">struct</span> &#123;</span><br><span class="line">	Client  client.Client</span><br><span class="line">	decoder *admission.Decoder</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(a *namespacesAnnotator)</span> <span class="title">Handle</span><span class="params">(ctx context.Context, req admission.Request)</span> <span class="title">admission</span>.<span class="title">Response</span></span> &#123;</span><br><span class="line">	ns := &amp;corev1.Namespace&#123;&#125;</span><br><span class="line">	err := a.decoder.Decode(req, ns)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> admission.Errored(http.StatusBadRequest, err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// mutate the fields in namespace</span></span><br><span class="line">	<span class="keyword">if</span> annotations := ns.Annotations; annotations != <span class="literal">nil</span>&#123;</span><br><span class="line">		ns.Annotations[<span class="string">&quot;name&quot;</span>] = <span class="string">&quot;shadow&quot;</span></span><br><span class="line">	&#125;<span class="keyword">else</span>&#123;</span><br><span class="line">		ns.Annotations = <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span>&#123;</span><br><span class="line">			<span class="string">&quot;name&quot;</span> : <span class="string">&quot;shadow&quot;</span>,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	marshaledNs, err := json.Marshal(ns)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">return</span> admission.Errored(http.StatusInternalServerError, err)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> admission.PatchResponseFromRaw(req.Object.Raw, marshaledNs)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(a *namespacesAnnotator)</span> <span class="title">InjectDecoder</span><span class="params">(d *admission.Decoder)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	a.decoder = d</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">vim setup.<span class="keyword">go</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> webhooks</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">ctrl <span class="string">&quot;sigs.k8s.io/controller-runtime&quot;</span></span><br><span class="line"><span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/webhook&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">//+kubebuilder:webhook:path=/annotate-v1-namespace,mutating=true,failurePolicy=fail,sideEffects=None,groups=&quot;&quot;,resources=namespaces,verbs=create;update,versions=v1,name=ns-annotate.admission.k8s.shadow.io,admissionReviewVersions=&#123;v1,v1beta1&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">SetupWebhookWithManager</span><span class="params">(mgr ctrl.Manager)</span></span> &#123;</span><br><span class="line">	mgr.GetWebhookServer().Register(<span class="string">&quot;/annotate-v1-namespace&quot;</span>, &amp;webhook.Admission&#123;</span><br><span class="line">		Handler: &amp;namespacesAnnotator&#123;</span><br><span class="line">			Client: mgr.GetClient(),</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    在入口文件main.go中将webhook注册给manager</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//manual register webhooks for core resource</span></span><br><span class="line">webhooks.SetupWebhookWithManager(mgr)</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="部署验证"><a href="#部署验证" class="headerlink" title="部署验证"></a>部署验证</h3><p>​    需要准备一下用于测试的K8S集群，可以考虑使用Kind简单搭建一个，这里有现成的集群环境。就直接使用了。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">## 首先检查一下虚拟机CentOS7.6中的Kubernetes连接是否正常，需要安装客户端工具+kubeconfig。这里不赘述。</span></span><br><span class="line">kubectl config current-context</span><br><span class="line">kubectl cluster-info</span><br><span class="line"></span><br><span class="line"><span class="comment">## 安装crd到集群中</span></span><br><span class="line">make install</span><br></pre></td></tr></table></figure>
+
+<p><img src="make-install-cmd.png" alt="make-install-cmd"></p>
+<p>​    从执行日志中可以看出，使用到了前面提供的controller-gen和kustomize两个脚手架工具，自动生成代码和yaml文件。</p>
+<p>1）服务器部署</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">## 1.官方建议使cert-manager简化对证书的管理，然后执行make docker-build打包镜像，发布到K8S集群中。但是每次修改都要重新部署。</span></span><br><span class="line">kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment">## 2.如果因为网络问题执行测试用例报错，可以查看Makefile手动执行docker build，跳过测试的步骤</span></span><br><span class="line">make docker-build docker-push IMG=&lt;some-registry&gt;/&lt;project-name&gt;:tag  </span><br><span class="line">    <span class="comment">## 手动步骤</span></span><br><span class="line">    <span class="built_in">cd</span> operator</span><br><span class="line">    make generate manifests</span><br><span class="line">    <span class="comment">## 注意修改Dockerfile 将新增的webhooks目录在编译时也拷贝进builde容器，因为main.go中引用了这个package。</span></span><br><span class="line">    docker build -t &lt;some-registry&gt;/&lt;project-name&gt;:tag   </span><br><span class="line">    <span class="comment">## 如果无法下载go的依赖，可以在Dockerfile中添加这行 ENV GOPROXY=&quot;https://goproxy.cn,direct&quot;</span></span><br><span class="line">    <span class="comment">## FROM gcr.io/distroless/static:nonroot  修改为  FROM alpine:3.11</span></span><br><span class="line">docker push &lt;some-registry&gt;/&lt;project-name&gt;:tag</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">## 3.将webhook的注释掉的配置，恢复</span></span><br><span class="line">vim config/default/kustomzation.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># Adds namespace to all resources.</span></span><br><span class="line">namespace: operator-system</span><br><span class="line"></span><br><span class="line"><span class="comment"># Value of this field is prepended to the</span></span><br><span class="line"><span class="comment"># names of all resources, e.g. a deployment named</span></span><br><span class="line"><span class="comment"># &quot;wordpress&quot; becomes &quot;alices-wordpress&quot;.</span></span><br><span class="line"><span class="comment"># Note that it should also match with the prefix (text before &#x27;-&#x27;) of the namespace</span></span><br><span class="line"><span class="comment"># field above.</span></span><br><span class="line">namePrefix: operator-</span><br><span class="line"></span><br><span class="line"><span class="comment"># Labels to add to all resources and selectors.</span></span><br><span class="line"><span class="comment">#commonLabels:</span></span><br><span class="line"><span class="comment">#  someName: someValue</span></span><br><span class="line"></span><br><span class="line">bases:</span><br><span class="line">- ../crd</span><br><span class="line">- ../rbac</span><br><span class="line">- ../manager</span><br><span class="line"><span class="comment"># [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix including the one in</span></span><br><span class="line"><span class="comment"># crd/kustomization.yaml</span></span><br><span class="line">- ../webhook</span><br><span class="line"><span class="comment"># [CERTMANAGER] To enable cert-manager, uncomment all sections with &#x27;CERTMANAGER&#x27;. &#x27;WEBHOOK&#x27; components are required.</span></span><br><span class="line">- ../certmanager</span><br><span class="line"><span class="comment"># [PROMETHEUS] To enable prometheus monitor, uncomment all sections with &#x27;PROMETHEUS&#x27;.</span></span><br><span class="line"><span class="comment">#- ../prometheus</span></span><br><span class="line"></span><br><span class="line">patchesStrategicMerge:</span><br><span class="line"><span class="comment"># Protect the /metrics endpoint by putting it behind auth.</span></span><br><span class="line"><span class="comment"># If you want your controller-manager to expose the /metrics</span></span><br><span class="line"><span class="comment"># endpoint w/o any authn/z, please comment the following line.</span></span><br><span class="line"><span class="comment">#- manager_auth_proxy_patch.yaml          ## 这个文件与manager_config_patch.yaml同时开启会有问题。</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># Mount the controller config file for loading manager configurations</span></span><br><span class="line"><span class="comment"># through a ComponentConfig type</span></span><br><span class="line">- manager_config_patch.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix including the one in</span></span><br><span class="line"><span class="comment"># crd/kustomization.yaml</span></span><br><span class="line">- manager_webhook_patch.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># [CERTMANAGER] To enable cert-manager, uncomment all sections with &#x27;CERTMANAGER&#x27;.</span></span><br><span class="line"><span class="comment"># Uncomment &#x27;CERTMANAGER&#x27; sections in crd/kustomization.yaml to enable the CA injection in the admission webhooks.</span></span><br><span class="line"><span class="comment"># &#x27;CERTMANAGER&#x27; needs to be enabled to use ca injection</span></span><br><span class="line">- webhookcainjection_patch.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># the following config is for teaching kustomize how to do var substitution</span></span><br><span class="line">vars:</span><br><span class="line"><span class="comment"># [CERTMANAGER] To enable cert-manager, uncomment all sections with &#x27;CERTMANAGER&#x27; prefix.</span></span><br><span class="line">- name: CERTIFICATE_NAMESPACE <span class="comment"># namespace of the certificate CR</span></span><br><span class="line">  objref:</span><br><span class="line">    kind: Certificate</span><br><span class="line">    group: cert-manager.io</span><br><span class="line">    version: v1</span><br><span class="line">    name: serving-cert <span class="comment"># this name should match the one in certificate.yaml</span></span><br><span class="line">  fieldref:</span><br><span class="line">    fieldpath: metadata.namespace</span><br><span class="line">- name: CERTIFICATE_NAME</span><br><span class="line">  objref:</span><br><span class="line">    kind: Certificate</span><br><span class="line">    group: cert-manager.io</span><br><span class="line">    version: v1</span><br><span class="line">    name: serving-cert <span class="comment"># this name should match the one in certificate.yaml</span></span><br><span class="line">- name: SERVICE_NAMESPACE <span class="comment"># namespace of the service</span></span><br><span class="line">  objref:</span><br><span class="line">    kind: Service</span><br><span class="line">    version: v1</span><br><span class="line">    name: webhooks-service</span><br><span class="line">  fieldref:</span><br><span class="line">    fieldpath: metadata.namespace</span><br><span class="line">- name: SERVICE_NAME</span><br><span class="line">  objref:</span><br><span class="line">    kind: Service</span><br><span class="line">    version: v1</span><br><span class="line">    name: webhooks-service</span><br><span class="line"></span><br><span class="line">vim config/crd/kustmozzation.yaml</span><br><span class="line"><span class="comment"># This kustomization.yaml is not intended to be run by itself,</span></span><br><span class="line"><span class="comment"># since it depends on service name and namespace that are out of this kustomize package.</span></span><br><span class="line"><span class="comment"># It should be run by config/default</span></span><br><span class="line">resources:</span><br><span class="line">- bases/shadow.shadow.io_examples.yaml</span><br><span class="line"><span class="comment">#+kubebuilder:scaffold:crdkustomizeresource</span></span><br><span class="line"></span><br><span class="line">patchesStrategicMerge:</span><br><span class="line"><span class="comment"># [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix.</span></span><br><span class="line"><span class="comment"># patches here are for enabling the conversion webhooks for each CRD</span></span><br><span class="line">- patches/webhook_in_examples.yaml</span><br><span class="line"><span class="comment">#+kubebuilder:scaffold:crdkustomizewebhookpatch</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># [CERTMANAGER] To enable webhooks, uncomment all the sections with [CERTMANAGER] prefix.</span></span><br><span class="line"><span class="comment"># patches here are for enabling the CA injection for each CRD</span></span><br><span class="line">- patches/cainjection_in_examples.yaml</span><br><span class="line"><span class="comment">#+kubebuilder:scaffold:crdkustomizecainjectionpatch</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># the following config is for teaching kustomize how to do kustomization for CRDs.</span></span><br><span class="line">configurations:</span><br><span class="line">- kustomizeconfig.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment">## 4.发布到集群</span></span><br><span class="line">make deploy IMG=&lt;some-registry&gt;/&lt;project-name&gt;:tag   <span class="comment">##需要熟悉kustomize的语法，主要解决kustomize执行遇到的问题</span></span><br></pre></td></tr></table></figure>
+
+<p>​    执行日志：<img src="webhook-server-deploy.png" alt="webhook-server-deploy"></p>
+<p>​    查看controller的运行状态和日志：</p>
+<p><img src="operator-manager-log.png" alt="operator-manager-log"></p>
+<p>​    创建一个ns，验证mutate是否生效：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl create ns shadow</span><br></pre></td></tr></table></figure>
+
+<p><img src="core-resource-mutate-log.png" alt="core-resource-mutate-log"></p>
+<p>​    对Example资源进行cud操作，验证是否生效：</p>
+<p><img src="crd-example-cud.png" alt="crd-example-cud"></p>
+<p><img src="crd-webhook-execute-log.png" alt="crd-webhook-execute-log"></p>
+<p>​    可以看到admission webhook执行了创建和更新的日志输出，删除因为wehook的verb没有设置（如下标注，如果需要触发，需要增加delete的verb），所以没有触发。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F;+kubebuilder:webhook:path&#x3D;&#x2F;validate-shadow-shadow-io-v1-example,mutating&#x3D;false,failurePolicy&#x3D;fail,sideEffects&#x3D;None,groups&#x3D;shadow.shadow.io,resources&#x3D;examples,verbs&#x3D;create;update,versions&#x3D;v1,name&#x3D;vexample.kb.io,admissionReviewVersions&#x3D;&#123;v1,v1beta1&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>2）本地调试</p>
+<p>​    本地调试可以参考<a target="_blank" rel="noopener" href="https://lailin.xyz/post/operator-08-kubebuilder-webhook.html">这里</a>。</p>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/jetstack/cert-manager">cert-manager</a></p>
+<blockquote>
+<p>如果开发过程中，只调试controller不调试webhook，可以执行（make run ENABLE_WEBHOOKS=false）。</p>
+</blockquote>
+<h2 id="Code-Generator-1"><a href="#Code-Generator-1" class="headerlink" title="Code Generator"></a>Code Generator</h2><p>​    Client-go中提供了多种访问K8S资源的Client，这里我们重点研究，访问自定义的资源对象。目前已知有两种方式：Clientset和Dynamic Client。</p>
+<p>​    Dynamic Client使用unstructured.Unstructured来描述资源的类型，有类型安全的问题，在序列化和反序列化的编码中，非常不友好，建议使用Clientset。</p>
+<p>​    ClientSet依赖crd的资源定义和restclient，封装接口给上层应用使用。不同crd的Clientset存在大量的重复的模板式代码（Informer、Lister也是如此），使用codegen可以根据用户定义的crd自动生成符合k8s风格的代码。</p>
+<h3 id="Clone"><a href="#Clone" class="headerlink" title="Clone"></a>Clone</h3><p>​    Code Generator 本质上是一系列代码生成器的shell脚本集合。要使用这些脚本，首先clone它们到operator项目中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> operator</span><br><span class="line">mkdir -p tools</span><br><span class="line"><span class="built_in">cd</span> tools</span><br><span class="line">git <span class="built_in">clone</span> https://github.com/kubernetes/code-generator.git</span><br><span class="line"></span><br><span class="line"><span class="comment">## 一条命令生成clinetset、lister、informer</span></span><br><span class="line">tools/code-generator/generate-groups.sh all operator/pkg/generated/shadow operator/apis shadow:v1 --go-header-file ./hack/boilerplate.go.txt --output-base ../</span><br><span class="line"><span class="comment">### 参数说明见下图,这里有几点需要注意：</span></span><br><span class="line">（1）第一个参数all，可根据实际情况选择只生成具体需要的组件,具体查看<span class="built_in">help</span></span><br><span class="line">（2）第二、三个参数要包含module的名称，与工程的go.mod中保持一致，如果未包含module名称，代码无法生成</span><br><span class="line">（3）第四个参数为group:version。注意crd的定义必须放在这个目录下：第三个参数的路径/group/version/</span><br><span class="line">（4）后面可加-v number输出执行日志</span><br><span class="line">（5）开启kubuilder的multigroup功能，kubebuilder edit --multigroup=<span class="literal">true</span>。这样创建api会按照group/version的目录进行组织。未开启这个功能，kubebuilder创建api，crd定义在api下，开启之后，在apis下，并且按照group进行目录划分组织。</span><br><span class="line">（6）需要在crd定义的目录下，新增doc.go和register.go的文件</span><br><span class="line"></span><br><span class="line">vim api/shadow/v1/register.go</span><br><span class="line">package v1</span><br><span class="line"></span><br><span class="line">import (</span><br><span class="line">	<span class="string">&quot;k8s.io/apimachinery/pkg/runtime/schema&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line">// SchemeGroupVersion is group version used to register these objects</span><br><span class="line">var SchemeGroupVersion = GroupVersion</span><br><span class="line"></span><br><span class="line">// Resource takes an unqualified resource and returns a Group qualified GroupResource</span><br><span class="line">func Resource(resource string) schema.GroupResource &#123;</span><br><span class="line">	<span class="built_in">return</span> SchemeGroupVersion.WithResource(resource).GroupResource()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">vim api/shadow/v1/doc.go</span><br><span class="line">// +groupName=shadow.shadow.io                                          </span><br><span class="line"></span><br><span class="line">package v1</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p><img src="code-generator-help.png" alt="code-generator-help"></p>
+<p>​    根据参数二（operator/pkg/generated）和–output-base ../参数，生成的文件统一放在项目根目录下的pkg文件夹下：</p>
+<p><img src="code-generator-result.png" alt="code-generator-result"></p>
+<p>​    接下来，使用生成的client、informer、lister进行简单的测试验证。</p>
+<h3 id="Client"><a href="#Client" class="headerlink" title="Client"></a>Client</h3><p>​    使用Example的crd，准备两个资源对象，并apply到集群环境中。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">shadow.shadow.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Example</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">example-sample-bar</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">shadow</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="comment"># Add fields here</span></span><br><span class="line">  <span class="attr">foo:</span> <span class="string">bar</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">shadow.shadow.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Example</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">example-sample-shadow</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">shadow</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="comment"># Add fields here</span></span><br><span class="line">  <span class="attr">foo:</span> <span class="string">shadow</span></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<p>​    使用code generator生成的client像使用核心资源那样去访问它的API</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;context&quot;</span></span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	metav1 <span class="string">&quot;k8s.io/apimachinery/pkg/apis/meta/v1&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/tools/clientcmd&quot;</span></span><br><span class="line">	example <span class="string">&quot;operator/pkg/generated/shadow/clientset/versioned&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">	config, err := clientcmd.BuildConfigFromFlags(<span class="string">&quot;https://127.0.0.1:6443&quot;</span>, <span class="string">&quot;C:\\Users\\shadow\\.kube\\config&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span>&#123;</span><br><span class="line">		<span class="built_in">panic</span>(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	example, err := example.NewForConfig(config)</span><br><span class="line"></span><br><span class="line">	examples, err := example.ShadowV1().Examples(<span class="string">&quot;shadow&quot;</span>).List(context.TODO(),  metav1.ListOptions&#123;&#125;)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span>&#123;</span><br><span class="line">		<span class="built_in">panic</span>(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> _, ex := <span class="keyword">range</span> examples.Items&#123;</span><br><span class="line">		fmt.Println(ex.Spec.Foo)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    </p>
+<p>​    结果展示：</p>
+<p><img src="example-client-usecase.png" alt="example-client-usecase"></p>
+<h3 id="Informer-Lister"><a href="#Informer-Lister" class="headerlink" title="Informer/Lister"></a>Informer/Lister</h3><p>​    <a target="_blank" rel="noopener" href="https://github.com/kubernetes/sample-controller">sample-controller</a></p>
+<p>​    参照上述代码，简单梳理了一下使用informer编写controller的流程</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br><span class="line">205</span><br><span class="line">206</span><br><span class="line">207</span><br><span class="line">208</span><br><span class="line">209</span><br><span class="line">210</span><br><span class="line">211</span><br><span class="line">212</span><br><span class="line">213</span><br><span class="line">214</span><br><span class="line">215</span><br><span class="line">216</span><br><span class="line">217</span><br><span class="line">218</span><br><span class="line">219</span><br><span class="line">220</span><br><span class="line">221</span><br><span class="line">222</span><br><span class="line">223</span><br><span class="line">224</span><br><span class="line">225</span><br><span class="line">226</span><br><span class="line">227</span><br><span class="line">228</span><br><span class="line">229</span><br><span class="line">230</span><br><span class="line">231</span><br><span class="line">232</span><br><span class="line">233</span><br><span class="line">234</span><br><span class="line">235</span><br><span class="line">236</span><br><span class="line">237</span><br></pre></td><td class="code"><pre><span class="line">## 创建代码目录</span><br><span class="line">mkdir -p pkg/test</span><br><span class="line"></span><br><span class="line">vim controller.<span class="keyword">go</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> test</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">	corev1 <span class="string">&quot;k8s.io/api/core/v1&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/apimachinery/pkg/api/errors&quot;</span></span><br><span class="line">	utilruntime <span class="string">&quot;k8s.io/apimachinery/pkg/util/runtime&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/apimachinery/pkg/util/wait&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/kubernetes&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/kubernetes/scheme&quot;</span></span><br><span class="line">	typedcorev1 <span class="string">&quot;k8s.io/client-go/kubernetes/typed/core/v1&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/tools/cache&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/tools/record&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/util/workqueue&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/klog/v2&quot;</span></span><br><span class="line">	exampleclient <span class="string">&quot;operator/pkg/generated/shadow/clientset/versioned&quot;</span></span><br><span class="line">	samplescheme <span class="string">&quot;operator/pkg/generated/shadow/clientset/versioned/scheme&quot;</span></span><br><span class="line">	exampleinformers <span class="string">&quot;operator/pkg/generated/shadow/informers/externalversions/shadow/v1&quot;</span></span><br><span class="line">	examplelisters <span class="string">&quot;operator/pkg/generated/shadow/listers/shadow/v1&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> Controller <span class="keyword">struct</span> &#123;</span><br><span class="line">	kubeClientSet *kubernetes.Clientset</span><br><span class="line">	exampleClientSet *exampleclient.Clientset</span><br><span class="line"></span><br><span class="line">	exampleLister examplelisters.ExampleLister</span><br><span class="line">	exampleSynced cache.InformerSynced</span><br><span class="line"></span><br><span class="line">    workQueue workqueue.RateLimitingInterface</span><br><span class="line">	record record.EventRecorder</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Controller)</span> <span class="title">enqueueFoo</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">	<span class="keyword">var</span> key <span class="keyword">string</span></span><br><span class="line">	<span class="keyword">var</span> err error</span><br><span class="line">	<span class="keyword">if</span> key, err = cache.MetaNamespaceKeyFunc(obj); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		utilruntime.HandleError(err)</span><br><span class="line">		<span class="keyword">return</span></span><br><span class="line">	&#125;</span><br><span class="line">	c.workQueue.Add(key)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">NewController</span><span class="params">(kubeClientSet *kubernetes.Clientset, exampleClientSet *exampleclient.Clientset, exampleInformer exampleinformers.ExampleInformer)</span> *<span class="title">Controller</span></span> &#123;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//生成一个event记录器</span></span><br><span class="line">	utilruntime.Must(samplescheme.AddToScheme(scheme.Scheme))</span><br><span class="line">	klog.Info(<span class="string">&quot;Creating event broadcaster&quot;</span>)</span><br><span class="line">	eventBroadcaster := record.NewBroadcaster()</span><br><span class="line">	eventBroadcaster.StartStructuredLogging(<span class="number">0</span>)</span><br><span class="line">	eventBroadcaster.StartRecordingToSink(&amp;typedcorev1.EventSinkImpl&#123;Interface: kubeClientSet.CoreV1().Events(<span class="string">&quot;&quot;</span>)&#125;)</span><br><span class="line">	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource&#123;Component: <span class="string">&quot;example-controller&quot;</span>&#125;)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	controller := &amp;Controller&#123;</span><br><span class="line">		kubeClientSet:     kubeClientSet,</span><br><span class="line">		exampleClientSet:  exampleClientSet,</span><br><span class="line"></span><br><span class="line">		exampleLister: exampleInformer.Lister(),</span><br><span class="line">		exampleSynced: exampleInformer.Informer().HasSynced,</span><br><span class="line"></span><br><span class="line">		workQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), <span class="string">&quot;Examples&quot;</span>),</span><br><span class="line">		record:            recorder,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	klog.Info(<span class="string">&quot;Setting up event handlers&quot;</span>)</span><br><span class="line">	exampleInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs&#123;</span><br><span class="line">		AddFunc: controller.enqueueFoo,</span><br><span class="line">		UpdateFunc: <span class="function"><span class="keyword">func</span><span class="params">(old, <span class="built_in">new</span> <span class="keyword">interface</span>&#123;&#125;)</span></span> &#123;</span><br><span class="line">			controller.enqueueFoo(<span class="built_in">new</span>)</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> controller</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Controller)</span> <span class="title">Run</span><span class="params">(threads <span class="keyword">int</span>, stopCh &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="comment">//execute when exit</span></span><br><span class="line">	<span class="keyword">defer</span> utilruntime.HandleCrash()</span><br><span class="line">	<span class="keyword">defer</span> c.workQueue.ShutDown()</span><br><span class="line"></span><br><span class="line">	klog.Info(<span class="string">&quot;Starting sample controller&quot;</span>)</span><br><span class="line"></span><br><span class="line">	klog.Info(<span class="string">&quot;Waiting for informer caches to sync&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> ok := cache.WaitForCacheSync(stopCh, c.exampleSynced); !ok &#123;</span><br><span class="line">		<span class="keyword">return</span> fmt.Errorf(<span class="string">&quot;failed to wait for caches to sync&quot;</span>)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	klog.Info(<span class="string">&quot;Starting workers&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> i :=<span class="number">0</span>; i &lt; threads; i++ &#123;</span><br><span class="line">		<span class="keyword">go</span> wait.Until(c.runWorker, time.Second, stopCh)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	klog.Info(<span class="string">&quot;Started workers&quot;</span>)</span><br><span class="line"></span><br><span class="line">	&lt;-stopCh</span><br><span class="line"></span><br><span class="line">	klog.Info(<span class="string">&quot;Shutting down workers&quot;</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Controller)</span> <span class="title">runWorker</span><span class="params">()</span></span>&#123;</span><br><span class="line">	<span class="keyword">for</span> c.processNextWorkItem()&#123;</span><br><span class="line"></span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Controller)</span> <span class="title">processNextWorkItem</span><span class="params">()</span> <span class="title">bool</span></span> &#123;</span><br><span class="line">	item, shutdown := c.workQueue.Get()</span><br><span class="line">	<span class="keyword">if</span> shutdown &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//包装一下具体的处理方法，是为了使用defer处理queue.Done</span></span><br><span class="line">	<span class="comment">//如果一个元素，我们处理完成，或者想要抛弃，不想再次处理，需要调用queue.Forget</span></span><br><span class="line">	err := <span class="function"><span class="keyword">func</span><span class="params">(obj <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">error</span></span>&#123;</span><br><span class="line">		<span class="keyword">defer</span> c.workQueue.Done(obj)</span><br><span class="line"></span><br><span class="line">		<span class="keyword">var</span> key <span class="keyword">string</span></span><br><span class="line">		<span class="keyword">var</span> ok <span class="keyword">bool</span></span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> key, ok = obj.(<span class="keyword">string</span>); !ok &#123;</span><br><span class="line">			<span class="comment">//不合法的数据，不处理，直接出队</span></span><br><span class="line">			c.workQueue.Forget(obj)</span><br><span class="line">			utilruntime.HandleError(fmt.Errorf(<span class="string">&quot;expected string in workqueue but got %#v&quot;</span>, obj))</span><br><span class="line">			<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> err := c.syncHandler(key); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">//这个地方重新放回队列，重试~</span></span><br><span class="line">			c.workQueue.AddRateLimited(key)</span><br><span class="line">			<span class="keyword">return</span> fmt.Errorf(<span class="string">&quot;error syncing &#x27;%s&#x27;: %s, requeuing&quot;</span>, key, err.Error())</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">//处理成功</span></span><br><span class="line">		c.workQueue.Forget(obj)</span><br><span class="line">		klog.Infof(<span class="string">&quot;Successfully synced &#x27;%s&#x27;&quot;</span>, key)</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line"></span><br><span class="line">	&#125;(item)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		utilruntime.HandleError(err)</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *Controller)</span> <span class="title">syncHandler</span><span class="params">(key <span class="keyword">string</span>)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	namespace, name, err := cache.SplitMetaNamespaceKey(key)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span>&#123;</span><br><span class="line">		utilruntime.HandleError(fmt.Errorf(<span class="string">&quot;invalid resource key: %s&quot;</span>, key))</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//这个地方用lister从缓存里取,这是期望的状态</span></span><br><span class="line">	example, err := c.exampleLister.Examples(namespace).Get(name)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="keyword">if</span> errors.IsNotFound(err) &#123;</span><br><span class="line">			utilruntime.HandleError(fmt.Errorf(<span class="string">&quot;foo &#x27;%s&#x27; in work queue no longer exists&quot;</span>, key))</span><br><span class="line">			<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">return</span> err</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//这里是获取实际的状态，进行调谐，或者是更新自定义对象的状态。</span></span><br><span class="line">	klog.Infof(<span class="string">&quot;Reconcile/Update crd status if needed %v&quot;</span>, example)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">## 这里使用到了下文的单元测试，进行启动。没有放到入口文件main.<span class="keyword">go</span>中</span><br><span class="line"></span><br><span class="line">vim lister_infomer_test.<span class="keyword">go</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">package</span> test</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line"></span><br><span class="line">	<span class="string">&quot;testing&quot;</span></span><br><span class="line">	<span class="string">&quot;time&quot;</span></span><br><span class="line"></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/kubernetes&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/client-go/tools/clientcmd&quot;</span></span><br><span class="line">	<span class="string">&quot;k8s.io/klog/v2&quot;</span></span><br><span class="line"></span><br><span class="line">	exampleclient <span class="string">&quot;operator/pkg/generated/shadow/clientset/versioned&quot;</span></span><br><span class="line">	exampleinformer <span class="string">&quot;operator/pkg/generated/shadow/informers/externalversions&quot;</span></span><br><span class="line">	<span class="string">&quot;operator/pkg/signals&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TestListerAndInformer</span><span class="params">(t *testing.T)</span></span> &#123;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// set up signals so we handle the first shutdown signal gracefully</span></span><br><span class="line">	stopCh := signals.SetupSignalHandler()</span><br><span class="line"></span><br><span class="line">	config, err := clientcmd.BuildConfigFromFlags(<span class="string">&quot;https://127.0.0.1:6443&quot;</span>, <span class="string">&quot;C:\\Users\\shadow\\.kube\\config&quot;</span>)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span>&#123;</span><br><span class="line">		<span class="built_in">panic</span>(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	exampleClient, err := exampleclient.NewForConfig(config)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		klog.Fatalf(<span class="string">&quot;Error building example client: %s&quot;</span>, err.Error())</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	kubeClient, err := kubernetes.NewForConfig(config)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		klog.Fatalf(<span class="string">&quot;Error building kubernetes client: %s&quot;</span>, err.Error())</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">//创建共享Informer的工厂</span></span><br><span class="line">	exampleInformerFactory := exampleinformer.NewSharedInformerFactory(exampleClient, time.Second*<span class="number">30</span>)</span><br><span class="line"></span><br><span class="line">	controller := NewController(kubeClient, exampleClient, exampleInformerFactory.Shadow().V1().Examples())</span><br><span class="line"></span><br><span class="line">	exampleInformerFactory.Start(stopCh)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> err = controller.Run(<span class="number">2</span>, stopCh); err != <span class="literal">nil</span> &#123;</span><br><span class="line">		klog.Fatalf(<span class="string">&quot;Error running controller: %s&quot;</span>, err.Error())</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>​    </p>
+<p>​    执行单元测试用例，输出日志如下：</p>
+<p><img src="example-informer-usecase.png" alt="example-informer-usecase"></p>
+<p>​    从日志可以看出，之前创建的两个资源对象，已经可以被处理。</p>
+<blockquote>
+<p>注意使用code generator的生成的代码。不要进行修改，即使进行了本地修改，下次重新生成的时候，也会被覆盖。</p>
+</blockquote>
+<h2 id="测试"><a href="#测试" class="headerlink" title="测试"></a>测试</h2><p>​    controller测试比较麻烦，尽量使用单元测试。</p>
+<h3 id="单元测试"><a href="#单元测试" class="headerlink" title="单元测试"></a>单元测试</h3><p>​    借助借助于testing和”github.com/stretchr/testify/assert”包，使用表格测试的方法，很容易写出单元测试的代码。同时也可以进行一些性能测试分析，和代码覆盖率报告的生成。</p>
+<h3 id="集成测试"><a href="#集成测试" class="headerlink" title="集成测试"></a>集成测试</h3><p>​    Operator因为涉及到的组件比较复杂，能用单元测试尽量采用单元测试进行测试，下面是目前了解到的两种集成测试。</p>
+<h4 id="Evntest"><a href="#Evntest" class="headerlink" title="Evntest"></a>Evntest</h4><p>​    <a target="_blank" rel="noopener" href="https://book.kubebuilder.io/reference/envtest.html">envtest</a></p>
+<p>​    kubebuilder生成controller的时候，为我们使用envtest生成了测试的代码。</p>
+<h4 id="End-to-end"><a href="#End-to-end" class="headerlink" title="End-to-end"></a>End-to-end</h4><p>​    什么是E2E测试：</p>
+<blockquote>
+<p>End-to-end testing is a technique that tests the entire software product from beginning to end to ensure the application flow behaves as expected. It defines the product’s system dependencies and ensures all integrated pieces work together as expected.</p>
+<p>The main purpose of End-to-end (E2E) testing is to test from the end user’s experience by simulating the real user scenario and validating the system under test and its components for integration and data integrity</p>
+</blockquote>
+<p>​    </p>
+<p>​    </p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Operator/" rel="tag"># Operator</a>
+              <a href="/tags/Kubebuilder/" rel="tag"># Kubebuilder</a>
+              <a href="/tags/CRD/" rel="tag"># CRD</a>
+              <a href="/tags/Admission-Control-Webhook/" rel="tag"># Admission Control Webhook</a>
+              <a href="/tags/Code-Generator/" rel="tag"># Code Generator</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/" rel="prev" title="Kubernetes-Containerd部署实践">
+      <i class="fa fa-chevron-left"></i> Kubernetes-Containerd部署实践
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/08/04/%E8%AE%B0%E4%B8%80%E6%AC%A1Golang%E7%8E%AF%E5%A2%83%E8%B0%83%E8%AF%95%E9%97%AE%E9%A2%98/" rel="next" title="记一次Golang环境调试问题">
+      记一次Golang环境调试问题 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">基础简介</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-number">1.1.</span> <span class="nav-text">工作原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%84%9A%E6%89%8B%E6%9E%B6%E5%B7%A5%E5%85%B7"><span class="nav-number">1.2.</span> <span class="nav-text">脚手架工具</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA"><span class="nav-number">2.</span> <span class="nav-text">环境搭建</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#GVM-G"><span class="nav-number">2.1.</span> <span class="nav-text">GVM&#x2F;G</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Kubebuilder"><span class="nav-number">2.2.</span> <span class="nav-text">Kubebuilder</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Kustomize"><span class="nav-number">2.3.</span> <span class="nav-text">Kustomize</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Code-Generator"><span class="nav-number">2.4.</span> <span class="nav-text">Code Generator</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Windows-Linux-Share-File"><span class="nav-number">2.5.</span> <span class="nav-text">Windows&#x2F;Linux Share File</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%A1%B9%E7%9B%AE%E5%AE%9E%E6%88%98"><span class="nav-number">3.</span> <span class="nav-text">项目实战</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Initialize"><span class="nav-number">3.1.</span> <span class="nav-text">Initialize</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#API"><span class="nav-number">3.2.</span> <span class="nav-text">API</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Webhook"><span class="nav-number">3.3.</span> <span class="nav-text">Webhook</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BACRD%E5%88%9B%E5%BB%BAWebhook"><span class="nav-number">3.3.1.</span> <span class="nav-text">为CRD创建Webhook</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%BA%E6%A0%B8%E5%BF%83%E8%B5%84%E6%BA%90%E7%94%9F%E6%88%90Webhook"><span class="nav-number">3.3.2.</span> <span class="nav-text">为核心资源生成Webhook</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%83%A8%E7%BD%B2%E9%AA%8C%E8%AF%81"><span class="nav-number">3.3.3.</span> <span class="nav-text">部署验证</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Code-Generator-1"><span class="nav-number">3.4.</span> <span class="nav-text">Code Generator</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Clone"><span class="nav-number">3.4.1.</span> <span class="nav-text">Clone</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Client"><span class="nav-number">3.4.2.</span> <span class="nav-text">Client</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Informer-Lister"><span class="nav-number">3.4.3.</span> <span class="nav-text">Informer&#x2F;Lister</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95"><span class="nav-number">3.5.</span> <span class="nav-text">测试</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95"><span class="nav-number">3.5.1.</span> <span class="nav-text">单元测试</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9B%86%E6%88%90%E6%B5%8B%E8%AF%95"><span class="nav-number">3.5.2.</span> <span class="nav-text">集成测试</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Evntest"><span class="nav-number">3.5.2.1.</span> <span class="nav-text">Evntest</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#End-to-end"><span class="nav-number">3.5.2.2.</span> <span class="nav-text">End-to-end</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

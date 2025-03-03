@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    最近在排查用户问题时，遇到一些棘手的问题，因本身知识&amp;技能不足，特此记录备忘。 运维记录漏洞扫描显示某个端口加密算法不安全背景    开通DMZ服务器公网访问时，安全部门扫描显示服务器8443端口存在安全漏洞（CVE-2016-2183,CVE-2016-6329），这几台服务器部署着我们的ingress controller（版本：ingress-nginx-controll">
+<meta property="og:type" content="article">
+<meta property="og:title" content="运维杂记（一）">
+<meta property="og:url" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言    最近在排查用户问题时，遇到一些棘手的问题，因本身知识&amp;技能不足，特此记录备忘。 运维记录漏洞扫描显示某个端口加密算法不安全背景    开通DMZ服务器公网访问时，安全部门扫描显示服务器8443端口存在安全漏洞（CVE-2016-2183,CVE-2016-6329），这几台服务器部署着我们的ingress controller（版本：ingress-nginx-controll">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/sslscan.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/ingress-controller-TLSv1.3.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/nginx-uri-passed.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/apisix-ssl.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/ldd.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/dns-ndot.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/musl-resolve.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/mtu-mss.jpeg">
+<meta property="article:published_time" content="2024-08-12T16:00:00.000Z">
+<meta property="article:modified_time" content="2024-08-12T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="eBPF">
+<meta property="article:tag" content="bpftrace">
+<meta property="article:tag" content="CVE">
+<meta property="article:tag" content="ndot">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/sslscan.jpeg">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>运维杂记（一） | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          运维杂记（一）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-08-13 00:00:00" itemprop="dateCreated datePublished" datetime="2024-08-13T00:00:00+08:00">2024-08-13</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BF%90%E7%BB%B4%E5%AE%9E%E8%B7%B5/" itemprop="url" rel="index"><span itemprop="name">运维实践</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    最近在排查用户问题时，遇到一些棘手的问题，因本身知识&amp;技能不足，特此记录备忘。</p>
+<h1 id="运维记录"><a href="#运维记录" class="headerlink" title="运维记录"></a>运维记录</h1><h2 id="漏洞扫描显示某个端口加密算法不安全"><a href="#漏洞扫描显示某个端口加密算法不安全" class="headerlink" title="漏洞扫描显示某个端口加密算法不安全"></a>漏洞扫描显示某个端口加密算法不安全</h2><h3 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h3><p>    开通DMZ服务器公网访问时，安全部门扫描显示服务器8443端口存在安全漏洞（CVE-2016-2183,CVE-2016-6329），这几台服务器部署着我们的ingress controller（版本：ingress-nginx-controller:v1.1.3），而这个端口是webhook的调用端口。</p>
+<p>    扫描工具显示的问题如下：<strong>支持</strong> <strong>SSL</strong> <strong>中等强度密码组</strong> <strong>(SWEET32)</strong></p>
+<blockquote>
+<p>远程主机支持在一个或多个密码套件中使用 64 位块的块密码。由于使用弱 64 位块密码，因而会受到一个称为 SWEET32 的漏洞影响。具有足够资源的中间人攻击者可利用此漏洞，通过“birthday”攻击检测会在固定密码与已知纯文本之间泄露 XOR 的冲突，进而泄露密码文本（例如安全 HTTPS Cookie），并可能导致劫持经认证的会话。概念验证表明，攻击者仅需 30 个小时就可以从 HTTPS 会话中恢复身份验证 cookie。请注意，在客户端和服务器之间通过相同的 TLS 连接发送大量请求的能力，是发动此攻击的重要条件。如果单个链接允许的请求数量有限，则会减轻该漏洞的严重性。该插件需要报告偏差，因为 Nessus 尚未检查该缓解措施。</p>
+<p>Plugin Output: </p>
+<p>  Medium Strength Ciphers (&gt; 64-bit and &lt; 112-bit key, or 3DES)</p>
+<p>    Name                          Code             KEX           Auth     Encryption             MAC</p>
+<p>    ———————-        ———-       —           —-     ———————  —</p>
+<p>    ECDHE-RSA-DES-CBC3-SHA        0xC0, 0x12       ECDH          RSA      3DES-CBC(168)          SHA1</p>
+<p>    DES-CBC3-SHA                  0x00, 0x0A       RSA           RSA      3DES-CBC(168)          SHA1</p>
+</blockquote>
+<h3 id="分析"><a href="#分析" class="headerlink" title="分析"></a>分析</h3><p>    从安全扫描工具可以看出，问题在于暴露的端口支持在一个或多个密码套件中使用 64 位块的块密码。通过sslscan可以探测端口，并列出目前支持的密码套件。</p>
+<p>   目前sslscan可以通过github上的指导文档在linux服务期上编译。扫描命令如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sslscan 10.xxx.xx.xx:8443</span><br><span class="line"><span class="meta">#</span><span class="bash"> 或者使用nmap --script ssl-enum-ciphers -p 8443 10.xxx.xx.xx</span></span><br></pre></td></tr></table></figure>
+
+<p>扫描的结果如下：</p>
+<p><img src="sslscan.jpeg"></p>
+<h3 id="解决"><a href="#解决" class="headerlink" title="解决"></a>解决</h3><ul>
+<li><p>临时规避方案</p>
+<p>因考虑到目前webhook的调用，只有在提交资源对象给apiServer后，apiServer才会发起对webhook的调用，目前临时的解决方案是在节点上通过iptables禁用了非来自apiServer的连接请求。</p>
+</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">iptables -I INPUT -m tcp -p tcp --dport 8443 -j DROP</span><br><span class="line">iptables -I INPUT -m tcp -p tcp --dport 8443 -s 10.xx.xx.0/24 -j ACCEPT</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>最终解决方案</p>
+<p>在ingress controller的源码中，禁用TLSv1.2的加密套件。</p>
+</li>
+</ul>
+<p><img src="ingress-controller-TLSv1.3.jpeg"></p>
+<h2 id="Https请求服务器解密查看"><a href="#Https请求服务器解密查看" class="headerlink" title="Https请求服务器解密查看"></a>Https请求服务器解密查看</h2><h3 id="背景-1"><a href="#背景-1" class="headerlink" title="背景"></a>背景</h3><p>    用户前端页面使用了类似于/xxxx <strong>%3A</strong>xxx来请求图片，请求流经集群的ingress nginx后，通过http转发给业务的apisix，apisix通过<strong>https协议</strong>转发给业务的上游服务。</p>
+<p>    通过在nginx的pod中抓包显示：发送给apisix的服务并未进行decode。这点与Nginx的说明一致：<strong>没有定义URI和rewrite的path不会被decode</strong>。<img src="nginx-uri-passed.jpeg"></p>
+<p>    目前排查到了apisix，需要判断apisix是否对转发的路径进行了decode，但是apisix使用了https协议，传统的抓包无法获取http协议的内容。</p>
+<h3 id="分析-1"><a href="#分析-1" class="headerlink" title="分析"></a>分析</h3><p>    数据包经应用的openssl包加密发送到内核后，在内核中是无法知道具体的数据内容的。需要在加密之前，读取到apisix发送的内容。目前大多数加密使用的都是openssl。可使用bpf工具在uprobe中附加调试程序打印加密之前的数据。</p>
+<h3 id="解决-1"><a href="#解决-1" class="headerlink" title="解决"></a>解决</h3><p><a target="_blank" rel="noopener" href="https://blog.px.dev/ebpf-openssl-tracing/">Debugging with eBPF Part 3: Tracing SSL/TLS connections</a></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看进程的动态链接库</span></span><br><span class="line">ldd /proc/3648492/exe</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 根据进程ID查询OpenSSL的write 方法。</span></span><br><span class="line">bpftrace -l &#x27;u:/proc/3648492/root/usr/local/openresty/openssl111/lib/libssl.so.1.1:*&#x27;|grep -i write</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 输出, argN代表程序的参数</span></span><br><span class="line">BPFTRACE_STRLEN=200 bpftrace -e &#x27;u:/proc/3648492/root/usr/local/openresty/openssl111/lib/libssl.so.1.1:SSL_write &#123;printf(&quot;%s\n&quot;, str(arg1, arg2))&#125;&#x27;</span><br></pre></td></tr></table></figure>
+
+<p>     apisix使用的openssl的动态库的地/usr/local/openresty/openssl111/lib。</p>
+<p>    抓取到的结果，显示apisix确实对path进行了decode。<a target="_blank" rel="noopener" href="https://github.com/apache/apisix/issues/5654">apisix issue</a>    </p>
+<p><img src="apisix-ssl.jpeg">    </p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 进入容器内查看二进制文件的动态链接</span></span><br><span class="line">ldd /usr/local/openresty/bin/openresty</span><br><span class="line">nm --dynamic /usr/local/openresty/bin/openresty</span><br></pre></td></tr></table></figure>
+
+<p><img src="ldd.jpeg"></p>
+<h2 id="K8s短域名无法解析"><a href="#K8s短域名无法解析" class="headerlink" title="K8s短域名无法解析"></a>K8s短域名无法解析</h2><h3 id="背景-2"><a href="#背景-2" class="headerlink" title="背景"></a>背景</h3><p>    偶然的机会发现在pod中无法解析serviceName.namespace的域名，检查了dns设置和cordns的运行情况，百思不得其解。</p>
+<h3 id="分析-2"><a href="#分析-2" class="headerlink" title="分析"></a>分析</h3><p>    比对了正常的和不正常Pod的dns配置发现如下差异，不正常的Pod没有设置ndots。</p>
+<p><img src="dns-ndot.jpeg"></p>
+<p>    ndot的说明：与search配合使用，如果查询的域名中包含的点数大于等于ndot，则会首先使用该域名进行解析。默认值是1，上限是15。</p>
+<blockquote>
+<p>ndots: n<br>                     Sets a threshold for the number of dots which must<br>                     appear in a name given to <a target="_blank" rel="noopener" href="https://www.man7.org/linux/man-pages/man3/res_query.3.html">res_query(3)</a> (see<br>                     <a target="_blank" rel="noopener" href="https://www.man7.org/linux/man-pages/man3/resolver.3.html">resolver(3)</a>) before an <em>initial absolute query</em> will<br>                     be made.  The default for <em>n</em> is 1, meaning that if<br>                     there are any dots in a name, the name will be<br>                     tried first as an absolute name before any <em>search</em><br>                     <em>list</em> elements are appended to it.  The value for<br>                     this option is silently capped to 。</p>
+</blockquote>
+<p>    有问题的Pod使用了alpine的镜像，使用了<a target="_blank" rel="noopener" href="https://wiki.musl-libc.org/functional-differences-from-glibc.html">musl</a>的dns解析库。其中有这样的说明。</p>
+<p><img src="musl-resolve.jpeg"></p>
+<p>    也就是说一旦域名大于等于ndot后（有问题的pod默认ndots=1），musl不会再使用search搜索。</p>
+<h3 id="解决-2"><a href="#解决-2" class="headerlink" title="解决"></a>解决</h3><p>    需要注入ndots。目前都是公有云的local dns给注入的。</p>
+<h2 id="MTU-amp-MSS-amp-DF"><a href="#MTU-amp-MSS-amp-DF" class="headerlink" title="MTU&amp;MSS&amp;DF"></a>MTU&amp;MSS&amp;DF</h2><h3 id="背景-3"><a href="#背景-3" class="headerlink" title="背景"></a>背景</h3><p>    正常部署的服务突然挂掉无法访问，经排查服务和网络都没有问题，后发现是MTU设置问题，借此来理解MTU、MSS（Maximum Segment Size）及IP数据报文中的DF。</p>
+<h3 id="分析-3"><a href="#分析-3" class="headerlink" title="分析"></a>分析</h3><p><a target="_blank" rel="noopener" href="https://blog.csdn.net/wangquan1992/article/details/109028964">linux内核协议栈 TCP选项之MSS_linux查看mss-CSDN博客</a></p>
+<p>   客户端和服务端在三次握手中的前两次，通过TCP首部的MSS选项来协商MSS的大小。</p>
+<ol>
+<li><p>客户端：发送syn的MSS的MSS选项，大小=MTU-40（IP头20+TCP头20）</p>
+</li>
+<li><p>服务端：接受到syn的MSS后，比较syn的MSS和用户通过套接字TCP_MAXSEG的最小值保存在mss_clamp中，该值会影响发送过程中MSS的选择。服务端发送syn+ack给客户端，此处对MSS的处理与客户端相同。</p>
+</li>
+<li><p>客户端：客户端收到sync+ack后，比较syn的MSS和用户通过套接字TCP_MAXSEG的最小值保存在mss_clamp中，该值会影响发送过程中MSS的选择。</p>
+</li>
+</ol>
+<p>    TCP发送过程中会多次更新MSS的值，根据设备MTU或者当前最新的PMTU更新。</p>
+<p><img src="mtu-mss.jpeg"></p>
+<p>    在IP报文的有分片标志，一共三位，第1位保留，第2位代表DF：Don’t Fragment，如果设置为1代表不允许分片，第3位是MF：More Fragment，如果为1，代表后面还有分片，0代表最后一个分片。</p>
+<p>    IP分片和重组发生在网络层，数据传输过程中，每个路由器的MTU可能不同，如果不允许分片，将会触发ICMP协议，将当前数据包丢弃，并把当前路由的MTU回传给源主机。</p>
+<p>    TCP分段和重组发生在传输层。使用TCP协议一般会通过MSS协商数据包大小，所以很少会导致IP分片（UDP协议不会自己分段，或导致IP分片）。</p>
+<h2 id="PromQL-remote-read不支持"><a href="#PromQL-remote-read不支持" class="headerlink" title="PromQL remote read不支持|"></a>PromQL remote read不支持|</h2><h3 id="背景-4"><a href="#背景-4" class="headerlink" title="背景"></a>背景</h3><p>    在总prometheus（使用remote read级联查询下级prometheus）中统计多个实例的数据，发现使用labelName =~’xxx|sss’并不生效。</p>
+<h3 id="分析-4"><a href="#分析-4" class="headerlink" title="分析"></a>分析</h3><p>    所使用的labelName是通过external label添加上去的，原始的prometheus的指标中并不存在这个label。</p>
+<h3 id="解决-3"><a href="#解决-3" class="headerlink" title="解决"></a>解决</h3><p>    拆开按每个指标查询，然后+。</p>
+<h2 id="otel-processors-无法读取HostNetwork的Pod标签"><a href="#otel-processors-无法读取HostNetwork的Pod标签" class="headerlink" title="otel processors 无法读取HostNetwork的Pod标签"></a>otel processors 无法读取HostNetwork的Pod标签</h2><h3 id="背景-5"><a href="#背景-5" class="headerlink" title="背景"></a>背景</h3><p>    otel collector中使用processor读取pod的label通过指定的规则附加到上报链路跟踪数据中，将Pod改成hostNetwork后，通过抓包发现上报的指标没有了pod的标签。</p>
+<h3 id="分析-5"><a href="#分析-5" class="headerlink" title="分析"></a>分析</h3><p>    processor是通过pod的ip来识别具体的pod的，hostNetwork使用了宿主机的IP。无法查询是哪个pod的标签。</p>
+<h3 id="解决-4"><a href="#解决-4" class="headerlink" title="解决"></a>解决</h3><p>    通过在otel 插件中自定义上报的属性数据来上报信息。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/eBPF/" rel="tag"># eBPF</a>
+              <a href="/tags/bpftrace/" rel="tag"># bpftrace</a>
+              <a href="/tags/CVE/" rel="tag"># CVE</a>
+              <a href="/tags/ndot/" rel="tag"># ndot</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" rel="prev" title="初识机器学习">
+      <i class="fa fa-chevron-left"></i> 初识机器学习
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/" rel="next" title="Apisix网关方案">
+      Apisix网关方案 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%BF%90%E7%BB%B4%E8%AE%B0%E5%BD%95"><span class="nav-number">2.</span> <span class="nav-text">运维记录</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%BC%8F%E6%B4%9E%E6%89%AB%E6%8F%8F%E6%98%BE%E7%A4%BA%E6%9F%90%E4%B8%AA%E7%AB%AF%E5%8F%A3%E5%8A%A0%E5%AF%86%E7%AE%97%E6%B3%95%E4%B8%8D%E5%AE%89%E5%85%A8"><span class="nav-number">2.1.</span> <span class="nav-text">漏洞扫描显示某个端口加密算法不安全</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">2.1.1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90"><span class="nav-number">2.1.2.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3"><span class="nav-number">2.1.3.</span> <span class="nav-text">解决</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Https%E8%AF%B7%E6%B1%82%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%A7%A3%E5%AF%86%E6%9F%A5%E7%9C%8B"><span class="nav-number">2.2.</span> <span class="nav-text">Https请求服务器解密查看</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%8C%E6%99%AF-1"><span class="nav-number">2.2.1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-1"><span class="nav-number">2.2.2.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3-1"><span class="nav-number">2.2.3.</span> <span class="nav-text">解决</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#K8s%E7%9F%AD%E5%9F%9F%E5%90%8D%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90"><span class="nav-number">2.3.</span> <span class="nav-text">K8s短域名无法解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%8C%E6%99%AF-2"><span class="nav-number">2.3.1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-2"><span class="nav-number">2.3.2.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3-2"><span class="nav-number">2.3.3.</span> <span class="nav-text">解决</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#MTU-amp-MSS-amp-DF"><span class="nav-number">2.4.</span> <span class="nav-text">MTU&amp;MSS&amp;DF</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%8C%E6%99%AF-3"><span class="nav-number">2.4.1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-3"><span class="nav-number">2.4.2.</span> <span class="nav-text">分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#PromQL-remote-read%E4%B8%8D%E6%94%AF%E6%8C%81"><span class="nav-number">2.5.</span> <span class="nav-text">PromQL remote read不支持|</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%8C%E6%99%AF-4"><span class="nav-number">2.5.1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-4"><span class="nav-number">2.5.2.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3-3"><span class="nav-number">2.5.3.</span> <span class="nav-text">解决</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#otel-processors-%E6%97%A0%E6%B3%95%E8%AF%BB%E5%8F%96HostNetwork%E7%9A%84Pod%E6%A0%87%E7%AD%BE"><span class="nav-number">2.6.</span> <span class="nav-text">otel processors 无法读取HostNetwork的Pod标签</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%8C%E6%99%AF-5"><span class="nav-number">2.6.1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%86%E6%9E%90-5"><span class="nav-number">2.6.2.</span> <span class="nav-text">分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3-4"><span class="nav-number">2.6.3.</span> <span class="nav-text">解决</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

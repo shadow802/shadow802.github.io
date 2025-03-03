@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="网关方案​    Kubernetes集群的南北向流量打通，需要一个边缘网关，在实际生产中，该网关往往也常常作为API 网关被使用，提供一些服务治理的功能。 选型考量​    目前集群中使用nginx ingress作为边缘网关，主要充当七层负载均衡，通过annotations进行一些功能的定制，非常不友好，而且对于服务治理能力支持较弱，K8S SIG小组提出了API Gateway的标准，有一些">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ServiceMesh-Istio Ingress Gateway">
+<meta property="og:url" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="网关方案​    Kubernetes集群的南北向流量打通，需要一个边缘网关，在实际生产中，该网关往往也常常作为API 网关被使用，提供一些服务治理的功能。 选型考量​    目前集群中使用nginx ingress作为边缘网关，主要充当七层负载均衡，通过annotations进行一些功能的定制，非常不友好，而且对于服务治理能力支持较弱，K8S SIG小组提出了API Gateway的标准，有一些">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/Istio-Gateway-config-dump.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/Istio-Gateway.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/istio-wasm-proxy.svg">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/envoyfilter-wasm.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/wasm-headers.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/rate-limits-route-name.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/rate-limits-route-config.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/rate-limits-evaluate.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/lua-extension.png">
+<meta property="article:published_time" content="2022-01-26T16:00:00.000Z">
+<meta property="article:modified_time" content="2022-01-26T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Gateway">
+<meta property="article:tag" content="Istio">
+<meta property="article:tag" content="Envoy">
+<meta property="article:tag" content="WebAseembly">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/Istio-Gateway-config-dump.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>ServiceMesh-Istio Ingress Gateway | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ServiceMesh-Istio Ingress Gateway
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-01-27 00:00:00" itemprop="dateCreated datePublished" datetime="2022-01-27T00:00:00+08:00">2022-01-27</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ServiceMesh/" itemprop="url" rel="index"><span itemprop="name">ServiceMesh</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="网关方案"><a href="#网关方案" class="headerlink" title="网关方案"></a>网关方案</h1><p>​    Kubernetes集群的南北向流量打通，需要一个边缘网关，在实际生产中，该网关往往也常常作为API 网关被使用，提供一些服务治理的功能。</p>
+<h2 id="选型考量"><a href="#选型考量" class="headerlink" title="选型考量"></a>选型考量</h2><p>​    目前集群中使用nginx ingress作为边缘网关，主要充当七层负载均衡，通过annotations进行一些功能的定制，非常不友好，而且对于服务治理能力支持较弱，K8S SIG小组提出了API Gateway的标准，有一些项目（<a target="_blank" rel="noopener" href="https://gateway-api.sigs.k8s.io/implementations/">Kubernetes Gateway API</a>）做了实现，但是都尚处于孵化阶段，功能也不是很完善，无法应用于生产环境。</p>
+<p>​    之前计划使用APISIX作为Kubernetes新的负载均衡实现，但是因为目前的APISIX暂无法满足内外网隔离配置（ingressClass）的需求，而被否定。</p>
+<p>​    考虑到ServiceMesh的技术是主流的方向，而且已经日趋成熟，Envoy作为Istio的数据面，除了充当Sidecar以外，也被使用在Istio的网关当中。而且Envoy的成熟度是经过生产验证的，而且使用Istio Ingress Gateway作为边缘网关，可以复用Istio大部分的服务治理能力。</p>
+<p>​    本文将尝试使用Istio Ingress Gateway作为边缘网关，在网关上使用Istio的流量治理能力（生产集群实际未开启Sidecar注入能力）。</p>
+<h2 id="Envoy简介"><a href="#Envoy简介" class="headerlink" title="Envoy简介"></a>Envoy简介</h2><p>Envoy是由C++编写的一个代理，首次提出并实现了API可配置网关，使用xDS协议通过API管理服务实现对代理服务的动态配置。</p>
+<p>​    通过Envoy的配置文件，可以看出xDS的几个重要组成：</p>
+<ol>
+<li><p>LDS                 对应Istio的Gateway对象，每一个Listener，Envoy都会为其起一个监听端口。</p>
+<p>|——&gt; RDS   主要对应路由规则以及一些路由相关的配置。</p>
+</li>
+<li><p>CDS                Cluster对应一组服务，在不考虑Subset的情况下，可以认为是对应K8S的一个Service。</p>
+<p>|——&gt; EDS    Endpoint最终转发到的上游服务。</p>
+</li>
+</ol>
+<p>​    RDS会通过route.cluster指向CDS。从而实现数据转发到最终的上游服务。</p>
+<p>​    在Istio中，可通过如下命令查看Envoy的相关配置。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">istioctl dashboard envoy -n &lt;namespace&gt; &lt;pod name&gt;</span><br><span class="line"></span><br><span class="line">istioctl proxy-config listeners&#x2F;clusters -n [namespace] [pod name]</span><br></pre></td></tr></table></figure>
+
+<p><img src="Istio-Gateway-config-dump.png" alt="Istio-Gateway-config-dump"></p>
+<h2 id="功能梳理"><a href="#功能梳理" class="headerlink" title="功能梳理"></a>功能梳理</h2><p><img src="Istio-Gateway.png" alt="Istio-Gateway"></p>
+<p>​    如上是根据当前系统的功能需求，梳理的Istio Ingress Gateway对用的功能图表。</p>
+<h1 id="功能实践"><a href="#功能实践" class="headerlink" title="功能实践"></a>功能实践</h1><p>​    <a target="_blank" rel="noopener" href="https://istio.io/latest/docs/examples/">Istio Bookinfo Example</a></p>
+<p>​    常规的功能在Istio官网的Bookinfo的实例中，已有很好的演示，本文不再赘述。本文重点侧重于通过EnvoyFilter对Envoy进行定制化的配置和扩展。</p>
+<h2 id="环境说明"><a href="#环境说明" class="headerlink" title="环境说明"></a>环境说明</h2><table>
+<thead>
+<tr>
+<th>组件</th>
+<th>版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kubernetes</td>
+<td>v1.20.11</td>
+</tr>
+<tr>
+<td>Istio operator</td>
+<td>1.12.1</td>
+</tr>
+<tr>
+<td>httpbin</td>
+<td>latest</td>
+</tr>
+</tbody></table>
+<p>​    通过NodePort暴露了Istio Ingress Gateway的监听端口8080和8443，部署httpbin相关的Istio CRD对象如下：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Gateway</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">httpbin-gateway</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">istio:</span> <span class="string">ingressgateway</span></span><br><span class="line">  <span class="attr">servers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">hosts:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">httpbin.xxx.xx</span></span><br><span class="line">    <span class="attr">port:</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">      <span class="attr">number:</span> <span class="number">8080</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">HTTP</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">hosts:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">httpbin.xxx.xx</span></span><br><span class="line">    <span class="attr">port:</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">https</span></span><br><span class="line">      <span class="attr">number:</span> <span class="number">8443</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">HTTPS</span></span><br><span class="line">    <span class="attr">tls:</span></span><br><span class="line">      <span class="attr">credentialName:</span> <span class="string">xxxxxxx</span></span><br><span class="line">      <span class="attr">mode:</span> <span class="string">SIMPLE</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">VirtualService</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">httpbin</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">gateways:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">httpbin-gateway</span></span><br><span class="line">  <span class="attr">hosts:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">httpbin.xxx.xx</span></span><br><span class="line">  <span class="attr">http:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">uri:</span></span><br><span class="line">        <span class="attr">exact:</span> <span class="string">/get</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">uri:</span></span><br><span class="line">        <span class="attr">exact:</span> <span class="string">/headers</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">uri:</span></span><br><span class="line">        <span class="attr">prefix:</span> <span class="string">/</span></span><br><span class="line">    <span class="attr">route:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">httpbin</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v1</span></span><br><span class="line"></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">DestinationRule</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">httpbin</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">host:</span> <span class="string">httpbin</span></span><br><span class="line">  <span class="attr">subsets:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">v1</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">version:</span> <span class="string">v1</span></span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="WebAssembly"><a href="#WebAssembly" class="headerlink" title="WebAssembly"></a>WebAssembly</h2><h3 id="基础介绍"><a href="#基础介绍" class="headerlink" title="基础介绍"></a>基础介绍</h3><p>​    WebAssembly可使用多种语言进行编写，最终编译成wasm二进制文件，通过沙箱技术运行，在Istio中，可以自定义扩展EnvoyFilter资源对象对代理进行扩展。Proxy-Wasm目前已经取代了Mixer成为了Istio的主要扩展机制。</p>
+<p>​    Proxy-Wasm sdk目前比较成熟的是C++、Rust、WebAssembly Script。目前TinyGo（Go语言的一个子集）尚处于Experimental阶段。因为技术栈原因，本文使用TinyGo进行实践。Istio官方文档对于wasm与数据平面Envoy代理之间的关系如下：</p>
+<p><img src="istio-wasm-proxy.svg" alt="istio-wasm-proxy"></p>
+<h3 id="Demo实践"><a href="#Demo实践" class="headerlink" title="Demo实践"></a>Demo实践</h3><h4 id="TinyGo安装"><a href="#TinyGo安装" class="headerlink" title="TinyGo安装"></a>TinyGo安装</h4><p>​    根据官网要求安装TinyGo。</p>
+<p>​    <a target="_blank" rel="noopener" href="https://tinygo.org/getting-started/install/">TinyGo Install</a></p>
+<h4 id="编译wasm"><a href="#编译wasm" class="headerlink" title="编译wasm"></a>编译wasm</h4><p>​    <a target="_blank" rel="noopener" href="https://github.com/tetratelabs/proxy-wasm-go-sdk/tree/main/examples">tetratelabs/proxy-wasm-go-sdk</a></p>
+<p>​    从上面的案例库中选取其中一个example：http_headers，可以看到这个程序在请求的header中增加了一个键值对，作为我们验证是否生效的点。</p>
+<blockquote>
+<p>这里是自定义逻辑实现的点，可以实现各种filter满足自身业务需要，需要遵循proxy-wasm sdk的SPI。</p>
+<p>TinyGo是Go语言的一个子集，使用TinyGO编写Wasm存在一些限制，例如不能使用goroutine、recover等。</p>
+<p>详细可参考文档说明<a target="_blank" rel="noopener" href="https://github.com/tetratelabs/proxy-wasm-go-sdk/blob/main/doc/OVERVIEW.md">https://github.com/tetratelabs/proxy-wasm-go-sdk/blob/main/doc/OVERVIEW.md</a></p>
+</blockquote>
+<p>​    编译wasm二进制文件。可以参考Makefile中的命令。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">tinygo build -o http_headers.wasm -scheduler=none -target=wasi http_headers.go</span><br></pre></td></tr></table></figure>
+
+<h4 id="EnvoyFilter"><a href="#EnvoyFilter" class="headerlink" title="EnvoyFilter"></a>EnvoyFilter</h4><p>​    EnvoyFilter的资源定义文件：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">EnvoyFilter</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">wasm-filter</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">istio-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">workloadSelector:</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">istio:</span> <span class="string">ingressgateway</span></span><br><span class="line">  <span class="attr">configPatches:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">CLUSTER</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">ADD</span></span><br><span class="line">      <span class="attr">value:</span> <span class="comment"># cluster specification</span></span><br><span class="line">        <span class="attr">name:</span> <span class="string">&quot;wasm-cluster&quot;</span></span><br><span class="line">        <span class="attr">type:</span> <span class="string">STRICT_DNS</span></span><br><span class="line">        <span class="attr">connect_timeout:</span> <span class="string">10s</span></span><br><span class="line">        <span class="attr">lb_policy:</span> <span class="string">ROUND_ROBIN</span></span><br><span class="line">        <span class="attr">load_assignment:</span></span><br><span class="line">          <span class="attr">cluster_name:</span> <span class="string">wasm-cluster</span></span><br><span class="line">          <span class="attr">endpoints:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">lb_endpoints:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">endpoint:</span></span><br><span class="line">                <span class="attr">address:</span></span><br><span class="line">                  <span class="attr">socket_address:</span></span><br><span class="line">                    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">                    <span class="attr">address:</span> <span class="string">&quot;xx.xxx.xx.xxx&quot;</span></span><br><span class="line">                    <span class="attr">port_value:</span> <span class="number">8081</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_FILTER</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">      <span class="attr">listener:</span></span><br><span class="line">        <span class="attr">portNumber:</span> <span class="number">8080</span></span><br><span class="line">        <span class="attr">filterChain:</span></span><br><span class="line">          <span class="attr">filter:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">envoy.filters.network.http_connection_manager</span></span><br><span class="line">            <span class="attr">subFilter:</span></span><br><span class="line">              <span class="attr">name:</span> <span class="string">envoy.filters.http.router</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">INSERT_BEFORE</span></span><br><span class="line">      <span class="attr">value:</span></span><br><span class="line">        <span class="attr">name:</span> <span class="string">envoy.filters.http.wasm</span></span><br><span class="line">        <span class="attr">typed_config:</span></span><br><span class="line">          <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm</span></span><br><span class="line">          <span class="attr">config:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">wasm-filter</span></span><br><span class="line">            <span class="attr">root_id:</span> <span class="string">wasm-root-id</span></span><br><span class="line">            <span class="attr">vm_config:</span></span><br><span class="line">              <span class="attr">vm_id:</span> <span class="string">wasm-vm-id</span></span><br><span class="line">              <span class="attr">runtime:</span> <span class="string">envoy.wasm.runtime.v8</span></span><br><span class="line">              <span class="attr">code:</span></span><br><span class="line">                <span class="attr">remote:</span></span><br><span class="line">                  <span class="attr">sha256:</span> <span class="string">4333211c41afe75903b4eaf3093fd18a7f9435b159a97fa3088bbc585f4930c1</span></span><br><span class="line">                  <span class="attr">http_uri:</span></span><br><span class="line">                    <span class="attr">cluster:</span> <span class="string">wasm-cluster</span></span><br><span class="line">                    <span class="attr">uri:</span> <span class="string">http://xx.xxx.xx.xxx:8081/http_headers.wasm</span>   <span class="comment"># 这里使用nginx搭建了文件下载服务器</span></span><br><span class="line">                    <span class="attr">timeout:</span> <span class="string">&quot;3s&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>​    这里有几个地方需要注意：</p>
+<ol>
+<li>远程代码访问的地址，必须定义在Envoy的Cluster内，否则会报错。<ul>
+<li>ConfigMap的方式对文件大小有限制。</li>
+<li>也可以使用宿主机挂载的方式，可维护性较差。</li>
+</ul>
+</li>
+<li>EnvoyFilter需要定义在Ingress Gateway的命名空间下，否则无法生效。</li>
+<li>envoy.filters.http.wasm 暂不支持按照domain和route进行配置：<ul>
+<li>使用typed_per_filter_config：Envoy目前不支持wasm的http filter类型。</li>
+<li>使用Composite：Istio目前不支持Matching API下发。</li>
+</ul>
+</li>
+</ol>
+<h4 id="结果验证"><a href="#结果验证" class="headerlink" title="结果验证"></a>结果验证</h4><p>​    在集群中创建该对象后，通过istioctl dashboard envoy -n  [namespace] [pod name] 查看配置是否生效，如下图：</p>
+<p><img src="envoyfilter-wasm.png" alt="envoyfilter-wasm"></p>
+<p>​    访问httpbin服务，查看header中是否添加了对应的key。第一次访问是EnvoyFilter未提交或者是删除的情况下。</p>
+<p><img src="wasm-headers.png" alt="wasm-headers"></p>
+<h2 id="Rate-Limits"><a href="#Rate-Limits" class="headerlink" title="Rate Limits"></a>Rate Limits</h2><p>​    根据Istio文档的描述，Rate Limits分为：</p>
+<ul>
+<li><p>Global Rate Limit   </p>
+</li>
+<li><p>Local Rate Limit</p>
+<p> 全局的Rate Limits依赖外部服务，增加了复杂度，并且没有办法根据路径进行限流，直接舍弃。因此，这里仅测试Envoy自身支持的局部限流。</p>
+</li>
+</ul>
+<h3 id="Local-Rate-Limits"><a href="#Local-Rate-Limits" class="headerlink" title="Local Rate Limits"></a>Local Rate Limits</h3><p>​    前面在环境说明中已经部署了httpbin的VirtualService，这里为了实现根据路径限流的要求，稍作修改，为每个路由规则增加名称：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">VirtualService</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">httpbin</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">default</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">gateways:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">httpbin-gateway</span></span><br><span class="line">  <span class="attr">hosts:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">httpbin.xxx.xx</span></span><br><span class="line">  <span class="attr">http:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">get</span></span><br><span class="line">      <span class="attr">uri:</span></span><br><span class="line">        <span class="attr">exact:</span> <span class="string">/get</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">headers</span></span><br><span class="line">      <span class="attr">uri:</span></span><br><span class="line">        <span class="attr">exact:</span> <span class="string">/headers</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">slash</span></span><br><span class="line">      <span class="attr">uri:</span></span><br><span class="line">        <span class="attr">prefix:</span> <span class="string">/</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">httpbin-match</span></span><br><span class="line">    <span class="attr">route:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">httpbin</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v1</span></span><br></pre></td></tr></table></figure>
+
+<p>​    查看网关的配置，发现Envoy根据VirtualService的配置为每条路由都生成了一个名称，如下图所示：</p>
+<p><img src="rate-limits-route-name.png" alt="rate-limits-route-name"></p>
+<p>​    接下来，根据这个名称，为/get路由请求配置Local Rate Limits</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">EnvoyFilter</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">filter-local-ratelimit-svc</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">istio-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">workloadSelector:</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">istio-ingressgateway</span></span><br><span class="line">  <span class="attr">configPatches:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_FILTER</span></span><br><span class="line">      <span class="attr">match:</span></span><br><span class="line">        <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">        <span class="attr">listener:</span></span><br><span class="line">          <span class="attr">filterChain:</span></span><br><span class="line">            <span class="attr">filter:</span></span><br><span class="line">              <span class="attr">name:</span> <span class="string">&quot;envoy.filters.network.http_connection_manager&quot;</span></span><br><span class="line">      <span class="attr">patch:</span></span><br><span class="line">        <span class="attr">operation:</span> <span class="string">INSERT_BEFORE</span></span><br><span class="line">        <span class="attr">value:</span></span><br><span class="line">          <span class="attr">name:</span> <span class="string">envoy.filters.http.local_ratelimit</span></span><br><span class="line">          <span class="attr">typed_config:</span></span><br><span class="line">            <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/udpa.type.v1.TypedStruct</span></span><br><span class="line">            <span class="attr">type_url:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit</span></span><br><span class="line">            <span class="attr">value:</span></span><br><span class="line">              <span class="attr">stat_prefix:</span> <span class="string">http_local_rate_limiter</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_ROUTE</span></span><br><span class="line">      <span class="attr">match:</span></span><br><span class="line">        <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">        <span class="attr">routeConfiguration:</span></span><br><span class="line">          <span class="attr">vhost:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">&quot;httpbin.xxx.xx:8443&quot;</span></span><br><span class="line">            <span class="attr">route:</span></span><br><span class="line">              <span class="attr">name:</span> <span class="string">&quot;httpbin-match.get&quot;</span></span><br><span class="line">              <span class="attr">action:</span> <span class="string">ANY</span></span><br><span class="line">      <span class="attr">patch:</span></span><br><span class="line">        <span class="attr">operation:</span> <span class="string">MERGE</span></span><br><span class="line">        <span class="attr">value:</span></span><br><span class="line">          <span class="attr">typed_per_filter_config:</span></span><br><span class="line">            <span class="attr">envoy.filters.http.local_ratelimit:</span></span><br><span class="line">              <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/udpa.type.v1.TypedStruct</span></span><br><span class="line">              <span class="attr">type_url:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit</span></span><br><span class="line">              <span class="attr">value:</span></span><br><span class="line">                <span class="attr">stat_prefix:</span> <span class="string">http_local_rate_limiter</span></span><br><span class="line">                <span class="attr">token_bucket:</span></span><br><span class="line">                  <span class="attr">max_tokens:</span> <span class="number">1</span></span><br><span class="line">                  <span class="attr">tokens_per_fill:</span> <span class="number">1</span></span><br><span class="line">                  <span class="attr">fill_interval:</span> <span class="string">60s</span></span><br><span class="line">                <span class="attr">filter_enabled:</span></span><br><span class="line">                  <span class="attr">runtime_key:</span> <span class="string">local_rate_limit_enabled</span></span><br><span class="line">                  <span class="attr">default_value:</span></span><br><span class="line">                    <span class="attr">numerator:</span> <span class="number">100</span></span><br><span class="line">                    <span class="attr">denominator:</span> <span class="string">HUNDRED</span></span><br><span class="line">                <span class="attr">filter_enforced:</span></span><br><span class="line">                  <span class="attr">runtime_key:</span> <span class="string">local_rate_limit_enforced</span></span><br><span class="line">                  <span class="attr">default_value:</span></span><br><span class="line">                    <span class="attr">numerator:</span> <span class="number">100</span></span><br><span class="line">                    <span class="attr">denominator:</span> <span class="string">HUNDRED</span></span><br><span class="line">                <span class="attr">response_headers_to_add:</span></span><br><span class="line">                  <span class="bullet">-</span> <span class="attr">append:</span> <span class="literal">false</span></span><br><span class="line">                    <span class="attr">header:</span></span><br><span class="line">                      <span class="attr">key:</span> <span class="string">x-local-rate-limit</span></span><br><span class="line">                      <span class="attr">value:</span> <span class="string">&#x27;true&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>​    kubectl apply -f 上述对象后，再次检查配置文件看配置是否生效，并测试结果。</p>
+<p><img src="rate-limits-route-config.png" alt="rate-limits-route-config"></p>
+<p><img src="rate-limits-evaluate.png" alt="rate-limits-evaluate"></p>
+<h2 id="Lua"><a href="#Lua" class="headerlink" title="Lua"></a>Lua</h2><p>​    Wasm的插件目前不支持按照route path进行启用：</p>
+<p>​    （1）Envoy的typed_per_filter_config暂不支持envoy.filters.http.wasm的类型，但可以支持envoy.filters.http.lua。</p>
+<p>​    （2）Istio的xDS目前不支持Envoy的composite的http filter的下发。</p>
+<p>​    下面采用lua扩展，支持按照路由路径配置插件的启用。因为对lua脚本并不熟悉，示例插件实现较为简单，仅以在header追加内容为例。比较复杂的插件可以通过lua封装成组件库，然后在lua中引用，具体可参照Envoy的<a target="_blank" rel="noopener" href="https://github.com/envoyproxy/envoy/tree/b29f4deb5e89bfdf07abd3684179072d789f6673/examples/lua">官方示例</a></p>
+<p>​    使用如下yaml文件，为httpbin服务的http监听器的/get路径启用插件。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">EnvoyFilter</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">lua-filter</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">istio-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">workloadSelector:</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">istio:</span> <span class="string">ingressgateway</span></span><br><span class="line">  <span class="attr">configPatches:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_ROUTE</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">routeConfiguration:</span></span><br><span class="line">        <span class="attr">vhost:</span></span><br><span class="line">          <span class="attr">name:</span> <span class="string">httpbin.xxx.xx:8080</span>                           <span class="comment">## 指定vhost</span></span><br><span class="line">          <span class="attr">route:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">&quot;httpbin-match.get&quot;</span>                         <span class="comment">## 指定路由名称，这里沿用Rate Limits的VirtualService中使用的名称</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">MERGE</span></span><br><span class="line">      <span class="attr">value:</span></span><br><span class="line">        <span class="attr">typed_per_filter_config:</span></span><br><span class="line">          <span class="attr">envoy.filters.http.lua:</span></span><br><span class="line">            <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.lua.v3.LuaPerRoute</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">shadow.lua</span>                                   <span class="comment">## 引用在HTTP_FILTER定义的lua脚本</span></span><br><span class="line"></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_FILTER</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">      <span class="attr">listener:</span></span><br><span class="line">        <span class="attr">portNumber:</span> <span class="number">8080</span></span><br><span class="line">        <span class="attr">filterChain:</span></span><br><span class="line">          <span class="attr">filter:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">envoy.filters.network.http_connection_manager</span></span><br><span class="line">            <span class="attr">subFilter:</span></span><br><span class="line">              <span class="attr">name:</span> <span class="string">envoy.filters.http.router</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">INSERT_BEFORE</span></span><br><span class="line">      <span class="attr">value:</span></span><br><span class="line">        <span class="attr">name:</span> <span class="string">envoy.filters.http.lua</span></span><br><span class="line">        <span class="attr">typed_config:</span></span><br><span class="line">          <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua</span></span><br><span class="line">          <span class="attr">inline_code:</span> <span class="string">|</span></span><br><span class="line">            <span class="string">function</span> <span class="string">envoy_on_request(request_handle)</span></span><br><span class="line">              <span class="string">--</span> <span class="string">do</span> <span class="string">something</span></span><br><span class="line">            <span class="string">end</span></span><br><span class="line">          <span class="attr">source_codes:</span></span><br><span class="line">            <span class="attr">shadow.lua:</span>                                    <span class="comment">## 申明脚本内容</span></span><br><span class="line">              <span class="attr">inline_string:</span> <span class="string">|</span></span><br><span class="line">                <span class="string">function</span> <span class="string">envoy_on_request(request_handle)</span></span><br><span class="line">                  <span class="string">request_handle:headers():add(&quot;foo&quot;,</span> <span class="string">&quot;shadow&quot;</span><span class="string">)</span></span><br><span class="line">                <span class="string">end</span></span><br></pre></td></tr></table></figure>
+
+<p>​    将上述对象在集群中执行，验证结果，当访问/get时，lua插件为请求添加了Foo=shadow的header，而插件并未处理/header的请求：</p>
+<p><img src="lua-extension.png" alt="lua-extension"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Gateway/" rel="tag"># Gateway</a>
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+              <a href="/tags/Envoy/" rel="tag"># Envoy</a>
+              <a href="/tags/WebAseembly/" rel="tag"># WebAseembly</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/" rel="prev" title="Kubernetes-源码分析kube-controller-manager">
+      <i class="fa fa-chevron-left"></i> Kubernetes-源码分析kube-controller-manager
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/" rel="next" title="ServiceMesh-Istio Sidecar流量劫持">
+      ServiceMesh-Istio Sidecar流量劫持 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88"><span class="nav-number">1.</span> <span class="nav-text">网关方案</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%80%89%E5%9E%8B%E8%80%83%E9%87%8F"><span class="nav-number">1.1.</span> <span class="nav-text">选型考量</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Envoy%E7%AE%80%E4%BB%8B"><span class="nav-number">1.2.</span> <span class="nav-text">Envoy简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8A%9F%E8%83%BD%E6%A2%B3%E7%90%86"><span class="nav-number">1.3.</span> <span class="nav-text">功能梳理</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8A%9F%E8%83%BD%E5%AE%9E%E8%B7%B5"><span class="nav-number">2.</span> <span class="nav-text">功能实践</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%8E%AF%E5%A2%83%E8%AF%B4%E6%98%8E"><span class="nav-number">2.1.</span> <span class="nav-text">环境说明</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#WebAssembly"><span class="nav-number">2.2.</span> <span class="nav-text">WebAssembly</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E4%BB%8B%E7%BB%8D"><span class="nav-number">2.2.1.</span> <span class="nav-text">基础介绍</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Demo%E5%AE%9E%E8%B7%B5"><span class="nav-number">2.2.2.</span> <span class="nav-text">Demo实践</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#TinyGo%E5%AE%89%E8%A3%85"><span class="nav-number">2.2.2.1.</span> <span class="nav-text">TinyGo安装</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BC%96%E8%AF%91wasm"><span class="nav-number">2.2.2.2.</span> <span class="nav-text">编译wasm</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#EnvoyFilter"><span class="nav-number">2.2.2.3.</span> <span class="nav-text">EnvoyFilter</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BB%93%E6%9E%9C%E9%AA%8C%E8%AF%81"><span class="nav-number">2.2.2.4.</span> <span class="nav-text">结果验证</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Rate-Limits"><span class="nav-number">2.3.</span> <span class="nav-text">Rate Limits</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Local-Rate-Limits"><span class="nav-number">2.3.1.</span> <span class="nav-text">Local Rate Limits</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Lua"><span class="nav-number">2.4.</span> <span class="nav-text">Lua</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

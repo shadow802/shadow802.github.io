@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言人工智能    人工智能（全称 Artificial Intelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。     AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。 机器学习    机器学习（Machine Lea">
+<meta property="og:type" content="article">
+<meta property="og:title" content="初识机器学习">
+<meta property="og:url" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言人工智能    人工智能（全称 Artificial Intelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。     AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。 机器学习    机器学习（Machine Lea">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/cross-validation.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/linear-regression-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-border.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/MLP.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neural-networks.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/M-P.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/activation-function.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/roc-auc.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svm-roc-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svc-rf-roc-plot.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/k-fold-CV.jpg">
+<meta property="article:published_time" content="2023-12-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-12-24T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="ML">
+<meta property="article:tag" content="AI">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>初识机器学习 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          初识机器学习
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-12-25 00:00:00" itemprop="dateCreated datePublished" datetime="2023-12-25T00:00:00+08:00">2023-12-25</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/AI/" itemprop="url" rel="index"><span itemprop="name">AI</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><h2 id="人工智能"><a href="#人工智能" class="headerlink" title="人工智能"></a>人工智能</h2><p>    人工智能（全称 <em>A</em>rtificial <em>I</em>ntelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。</p>
+<p>    AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。</p>
+<h2 id="机器学习"><a href="#机器学习" class="headerlink" title="机器学习"></a>机器学习</h2><p>    机器学习（<em>M</em>achine <em>L</em>earning）是人工智能的一个子集，它使用算法训练数据来获取结果。主要分为如下学习模型:</p>
+<ul>
+<li><p>监督式（Supervised）</p>
+<p>给定有标记的数据集，预测新输入的预期输出，例如分类、回归。</p>
+</li>
+<li><p>非监督式（Unsupervised）</p>
+<p>从无标记的数据集中寻找隐藏的关系结构，例如聚类分析。</p>
+</li>
+<li><p>半监督学习</p>
+<p>有些算法可以处理部分标记的训练数据，通常是大量未标记的数据和少量标记的数据；监督学习算法都是无监督和监督算法的结合。</p>
+</li>
+<li><p>强化学习（Reinforcement）</p>
+<p>与环境交互得到反馈后，修正自己的行为。它模仿了人类为实现目标所采取的反复试验的学习过程</p>
+</li>
+</ul>
+<blockquote>
+<p>使用<strong>深层神经网络模型</strong>的被称为<strong>深度学习</strong>。</p>
+</blockquote>
+<h1 id="基础知识"><a href="#基础知识" class="headerlink" title="基础知识"></a>基础知识</h1><h2 id="术语"><a href="#术语" class="headerlink" title="术语"></a>术语</h2><h3 id="过拟合"><a href="#过拟合" class="headerlink" title="过拟合"></a>过拟合</h3><blockquote>
+<p>Learning the parameters of a prediction function and testing it on the same data is a methodological mistake: a model that would just repeat the labels of the samples that it has just seen would have a perfect score but would fail to predict anything useful on yet-unseen data. This situation is called <strong>overfitting</strong> .</p>
+</blockquote>
+<p><img src="overfitting.jpg"></p>
+<h3 id="超参数"><a href="#超参数" class="headerlink" title="超参数"></a>超参数</h3><p>    学习到的是参数；人为指定的是超参数，例如神经网络的层数、神经元的个数、SVM的C及核函数等。需要通过反复试验得到最佳的超参数组合，以使模型的准确性和性能达到最优。</p>
+<p>    ​ 在超参数集中搜索以获得最佳<a target="_blank" rel="noopener" href="http://scikit-learn.org.cn/view/6.html">cross validation</a>交叉验证分数的方法是可实现并且推荐的。常用的方法有<strong>网格搜索</strong>、<strong>随机搜索</strong>等。</p>
+<h3 id="损失函数"><a href="#损失函数" class="headerlink" title="损失函数"></a>损失函数</h3><p>    预测数据与真实数据存在误差，可以使用一个函数来表示损失值的大小，例如使用预测值和真实值的<strong>均方误差</strong>。</p>
+<h3 id="正则化"><a href="#正则化" class="headerlink" title="正则化"></a>正则化</h3><p>    将输出的数据，进行处理，使起更具有代表意义，例如代表输出值，按照总和100%重新计算。</p>
+<p>        $s_i =\frac{e_i} {\sum_{i=1}^{j} e_i}$</p>
+<h3 id="标准化-归一化"><a href="#标准化-归一化" class="headerlink" title="标准化/归一化"></a>标准化/归一化</h3><p>    对训练数据进行处理，使其更好看和更易处理。</p>
+<h2 id="数据集"><a href="#数据集" class="headerlink" title="数据集"></a>数据集</h2><p>    数据集一般需要换分成如下部分使用：</p>
+<ul>
+<li><p>训练数据集：训练模型。</p>
+</li>
+<li><p>验证数据集：如果使用交叉验证，例如K折交叉验证（k-fold CV），可以不划分。</p>
+</li>
+<li><p>测试数据集：始终用于模型的最后评估。</p>
+</li>
+</ul>
+<p>   在训练数据上对模型进行训练，利用验证集对模型进行评估。当“实验”得到一个较好的成绩时，在测试集上完成模型的最终评估。</p>
+<p><img src="cross-validation.jpg"></p>
+<h2 id="模型"><a href="#模型" class="headerlink" title="模型"></a>模型</h2><h3 id="算法"><a href="#算法" class="headerlink" title="算法"></a>算法</h3><p>    机器学习有很多算法，这里只选取几个，稍加分析，以了解整个机器学习的开发流程。</p>
+<h4 id="线性回归-Linear-regression）"><a href="#线性回归-Linear-regression）" class="headerlink" title="线性回归(Linear regression）"></a>线性回归(Linear regression）</h4><p>    线性回归基于一个或多个自变量预测因变量的值，它之所以被称为“线性”，那是因为它假设因变量和自变量之间的关系是线性的。</p>
+<p>    $y=a_1<em>x_1+a_2</em>x_2+a_n*x_n+b$</p>
+<p>    使用线性回归预测糖尿病一年后疾病进展的定量测量指标。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://scikit-learn.org.cn/view/230.html#</span></span><br><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">from</span> sklearn <span class="keyword">import</span> datasets, linear_model</span><br><span class="line"><span class="keyword">from</span> sklearn.metrics <span class="keyword">import</span> mean_squared_error, r2_score</span><br><span class="line"><span class="keyword">from</span> sklearn.model_selection <span class="keyword">import</span> train_test_split</span><br><span class="line"></span><br><span class="line">X,y = datasets.load_diabetes(return_X_y=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">X = X[:, np.newaxis, <span class="number">2</span>]</span><br><span class="line"></span><br><span class="line">X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=<span class="number">0.2</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">lr = linear_model.LinearRegression()</span><br><span class="line">lr.fit(X_train, y_train)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Make predictions using the testing set</span></span><br><span class="line">y_predict = lr.predict(X_test)</span><br><span class="line"></span><br><span class="line"><span class="comment"># The coefficients</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">&#x27;Coefficients: \n&#x27;</span>, lr.coef_)</span><br><span class="line"></span><br><span class="line"><span class="comment"># The mean squared error</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">&#x27;Mean squared error: %.2f&#x27;</span> % mean_squared_error(y_test, y_predict))</span><br><span class="line"></span><br><span class="line"><span class="comment"># The coefficient of determination: 1 is perfect prediction</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">&#x27;Coefficient of determination: %.2f&#x27;</span> % r2_score(y_test, y_predict))</span><br><span class="line"></span><br><span class="line"><span class="comment"># Plot outputs</span></span><br><span class="line">plt.scatter(X_test, y_test,  color=<span class="string">&#x27;black&#x27;</span>)</span><br><span class="line">plt.plot(X_test, y_predict, color=<span class="string">&#x27;blue&#x27;</span>, linewidth=<span class="number">3</span>)</span><br><span class="line"></span><br><span class="line">plt.xticks(())</span><br><span class="line">plt.yticks(())</span><br><span class="line"></span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure>
+
+<p><img src="linear-regression-plot.jpg"></p>
+<h4 id="逻辑回归（Logistic-regression）"><a href="#逻辑回归（Logistic-regression）" class="headerlink" title="逻辑回归（Logistic regression）"></a>逻辑回归（Logistic regression）</h4><p>    逻辑回归是一个分类模型，通常是基于一个或多个自变量预测二元结果的概率。</p>
+<p>    $y=1/(1+exp(b+a_1<em>x_1+a_2</em>x_2+…+a_n*x_n))$</p>
+<p>        $exp(x) = e^x$</p>
+<p>    MATLAB中sig函数指的是Sigmoid函数，其公式为:</p>
+<p>    $y = 1 / (1 + e^{-x})$</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://scikit-learn.org.cn/view/378.html</span></span><br><span class="line"><span class="keyword">from</span> sklearn.datasets <span class="keyword">import</span> load_iris</span><br><span class="line"><span class="keyword">from</span> sklearn.linear_model <span class="keyword">import</span> LogisticRegression</span><br><span class="line"></span><br><span class="line">X,y = load_iris(return_X_y=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">lr = LogisticRegression(max_iter=<span class="number">1000</span>, random_state = <span class="number">0</span>).fit(X, y)</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(<span class="string">&quot;预测X中的前两个元素的标签类别: &quot;</span>,lr.predict(X[:<span class="number">2</span>,:]))</span><br><span class="line"><span class="built_in">print</span>(<span class="string">&quot;概率估计: &quot;</span>,lr.predict_proba(X[:<span class="number">2</span>,:]))</span><br><span class="line"><span class="built_in">print</span>(<span class="string">&quot;返回给定测试数据和标签上的平均准确度: &quot;</span>,lr.score(X,y))</span><br></pre></td></tr></table></figure>
+
+<h4 id="决策树-Decision-trees"><a href="#决策树-Decision-trees" class="headerlink" title="决策树(Decision trees)"></a>决策树(Decision trees)</h4><p>    决策树之所以被称为“决策”树，顾名思义，能根据数据集的特征进行预测，它通过数据构建一个类似树状的决策模型来工作，每个分支代表不同的决策或结果。<strong>决策树</strong>(DTs)是一种用于分类和回归的非参数有监督学习方法。</p>
+<h4 id="随机森林-Random-forests"><a href="#随机森林-Random-forests" class="headerlink" title="随机森林(Random forests)"></a>随机森林(Random forests)</h4><p>    它通过创建一组决策树，并使用每棵树所做预测的平均值来进行最终预测，就类似于现实当中咱一群人投票，然后少数服从多数那样。</p>
+<p>    通过投票分类器VotingClassifier组合三种分类算法LogisticRegression、GaussianNB、 RandomForestClassifier，来计算分类的平均概率。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://scikit-learn.org.cn/view/171.html</span></span><br><span class="line"><span class="built_in">print</span>(__doc__)</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> sklearn.linear_model <span class="keyword">import</span> LogisticRegression</span><br><span class="line"><span class="keyword">from</span> sklearn.naive_bayes <span class="keyword">import</span> GaussianNB</span><br><span class="line"><span class="keyword">from</span> sklearn.ensemble <span class="keyword">import</span> RandomForestClassifier</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> sklearn.ensemble <span class="keyword">import</span> VotingClassifier</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> sklearn.datasets <span class="keyword">import</span> load_wine</span><br><span class="line"></span><br><span class="line">lr = LogisticRegression(max_iter=<span class="number">10000</span>, random_state=<span class="number">100</span>)</span><br><span class="line">rf = RandomForestClassifier(n_estimators=<span class="number">100</span>, random_state=<span class="number">100</span>)</span><br><span class="line">gnb = GaussianNB()</span><br><span class="line"></span><br><span class="line"><span class="comment"># X,y = load_wine(return_X_y=True)</span></span><br><span class="line">X = np.array([[-<span class="number">1.0</span>, -<span class="number">1.0</span>], [-<span class="number">1.2</span>, -<span class="number">1.4</span>], [-<span class="number">3.4</span>, -<span class="number">2.2</span>], [<span class="number">1.1</span>, <span class="number">1.2</span>]])</span><br><span class="line">y = np.array([<span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">2</span>])</span><br><span class="line"></span><br><span class="line">vc = VotingClassifier(estimators=[(<span class="string">&#x27;lr&#x27;</span>, lr), (<span class="string">&#x27;rf&#x27;</span>, rf), (<span class="string">&#x27;gnb&#x27;</span>, gnb)], voting=<span class="string">&#x27;soft&#x27;</span>, weights=[<span class="number">1</span>,<span class="number">5</span>,<span class="number">1</span>])</span><br><span class="line"></span><br><span class="line">probas = [c.fit(X, y).predict_proba(X) <span class="keyword">for</span> c <span class="keyword">in</span> (lr, rf, gnb, vc)]</span><br><span class="line"></span><br><span class="line">c1 = [pr[<span class="number">0</span>, <span class="number">0</span>] <span class="keyword">for</span> pr <span class="keyword">in</span> probas]</span><br><span class="line">c2 = [pr[<span class="number">0</span>, <span class="number">1</span>] <span class="keyword">for</span> pr <span class="keyword">in</span> probas]</span><br><span class="line"><span class="comment"># c3 = [pr[0, 2] for pr in probas]</span></span><br><span class="line"></span><br><span class="line">N = <span class="number">4</span>  <span class="comment"># number of groups</span></span><br><span class="line">ind = np.arange(N)  <span class="comment"># group positions</span></span><br><span class="line">width = <span class="number">0.35</span>  <span class="comment"># bar width</span></span><br><span class="line"></span><br><span class="line">fig, ax = plt.subplots()</span><br><span class="line"></span><br><span class="line">p1 = ax.bar(ind, np.hstack(([c1[:-<span class="number">1</span>], [<span class="number">0</span>]])), width, color=<span class="string">&#x27;green&#x27;</span>, edgecolor=<span class="string">&#x27;k&#x27;</span>)</span><br><span class="line">p2 = ax.bar(ind + width, np.hstack(([c2[:-<span class="number">1</span>], [<span class="number">0</span>]])), width, color=<span class="string">&#x27;lightgreen&#x27;</span>, edgecolor=<span class="string">&#x27;k&#x27;</span>)</span><br><span class="line"><span class="comment"># p3 = ax.bar(ind + width, np.hstack(([c3[:-1], [0]])), width, color=&#x27;red&#x27;, edgecolor=&#x27;k&#x27;)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># bars for VotingClassifier</span></span><br><span class="line">p4 = ax.bar(ind, [<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, c1[-<span class="number">1</span>]], width, color=<span class="string">&#x27;blue&#x27;</span>, edgecolor=<span class="string">&#x27;k&#x27;</span>)</span><br><span class="line">p5 = ax.bar(ind + width, [<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, c2[-<span class="number">1</span>]], width, color=<span class="string">&#x27;steelblue&#x27;</span>, edgecolor=<span class="string">&#x27;k&#x27;</span>)</span><br><span class="line"><span class="comment"># p6 = ax.bar(ind + width, [0, 0, 0, c3[-1]], width, color=&#x27;steelblue&#x27;, edgecolor=&#x27;k&#x27;)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># plot annotations</span></span><br><span class="line">plt.axvline(<span class="number">2.8</span>, color=<span class="string">&#x27;k&#x27;</span>, linestyle=<span class="string">&#x27;dashed&#x27;</span>)</span><br><span class="line">ax.set_xticks(ind + width)</span><br><span class="line">ax.set_xticklabels([<span class="string">&#x27;LogisticRegression\nweight 1&#x27;</span>, <span class="string">&#x27;RandomForestClassifier\nweight 5&#x27;</span>, <span class="string">&#x27;GaussianNB\nweight 1&#x27;</span>, <span class="string">&#x27;VotingClassifier\n(average probabilities)&#x27;</span>], rotation=<span class="number">40</span>, ha=<span class="string">&#x27;right&#x27;</span>)</span><br><span class="line">plt.ylim([<span class="number">0</span>, <span class="number">1</span>])</span><br><span class="line">plt.title(<span class="string">&#x27;Class probabilities for sample 1 by different classifiers&#x27;</span>)</span><br><span class="line">plt.legend([p1[<span class="number">0</span>], p2[<span class="number">0</span>]], [<span class="string">&#x27;class 1&#x27;</span>, <span class="string">&#x27;class 2&#x27;</span>], loc=<span class="string">&#x27;upper left&#x27;</span>)</span><br><span class="line"><span class="comment"># plt.legend([p1[0], p2[0], p3[0]], [&#x27;class 1&#x27;, &#x27;class 2&#x27;, &#x27;class 3&#x27;], loc=&#x27;upper left&#x27;)</span></span><br><span class="line">plt.tight_layout()</span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure>
+
+<p><img src="voting-classifier-plot.jpg"></p>
+<h4 id="K最近邻（KNN）"><a href="#K最近邻（KNN）" class="headerlink" title="K最近邻（KNN）"></a>K最近邻（KNN）</h4><p>    它大概的原理是通过找到离给定数据点最近的K个数据点，并利用这些数据点的类别或数值来进行预测。</p>
+<h4 id="K均值聚类算法-K-Means"><a href="#K均值聚类算法-K-Means" class="headerlink" title="K均值聚类算法(K-Means)"></a>K均值聚类算法(K-Means)</h4><p>    无监督学习算法。与KNN底层原理很像，但是是用来聚类的。</p>
+<h4 id="支持向量机（SVM）"><a href="#支持向量机（SVM）" class="headerlink" title="支持向量机（SVM）"></a>支持向量机（SVM）</h4><p>    支持向量机（Support Vector Machines，SVM）最初的设计是用来解决二分类问题，后来扩展到多分类问题。</p>
+<p>    使用Iris数据集的两个特征绘制投票分类器的决策边界。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://scikit-learn.org.cn/view/167.html</span></span><br><span class="line"><span class="keyword">from</span> itertools <span class="keyword">import</span> product</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> sklearn <span class="keyword">import</span> datasets</span><br><span class="line"><span class="keyword">from</span> sklearn.tree <span class="keyword">import</span> DecisionTreeClassifier</span><br><span class="line"><span class="keyword">from</span> sklearn.neighbors <span class="keyword">import</span> KNeighborsClassifier</span><br><span class="line"><span class="keyword">from</span> sklearn.svm <span class="keyword">import</span> SVC</span><br><span class="line"><span class="keyword">from</span> sklearn.ensemble <span class="keyword">import</span> VotingClassifier</span><br><span class="line"></span><br><span class="line">iris = datasets.load_iris()</span><br><span class="line"></span><br><span class="line"><span class="comment"># 取了所有行的第0列和第2列</span></span><br><span class="line">X = iris.data[:, [<span class="number">0</span>, <span class="number">2</span>]]</span><br><span class="line">y = iris.target</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">dtc = DecisionTreeClassifier(max_depth=<span class="number">4</span>)</span><br><span class="line">knc = KNeighborsClassifier(n_neighbors=<span class="number">7</span>)</span><br><span class="line">svc = SVC(gamma=<span class="number">.1</span>, kernel=<span class="string">&#x27;rbf&#x27;</span>, probability=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">vc = VotingClassifier(estimators=[(<span class="string">&#x27;dtc&#x27;</span>, dtc), (<span class="string">&#x27;knc&#x27;</span>, knc), (<span class="string">&#x27;svc&#x27;</span>, svc)], voting=<span class="string">&#x27;soft&#x27;</span>, weights=[<span class="number">2</span>, <span class="number">1</span>, <span class="number">2</span>])</span><br><span class="line"></span><br><span class="line">dtc.fit(X, y)</span><br><span class="line">knc.fit(X, y)</span><br><span class="line">svc.fit(X, y)</span><br><span class="line">vc.fit(X, y)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Plotting decision regions</span></span><br><span class="line">x_min, x_max = X[:,<span class="number">0</span>].<span class="built_in">min</span>() - <span class="number">1</span>, X[:,<span class="number">0</span>].<span class="built_in">max</span>() + <span class="number">1</span></span><br><span class="line">y_min, y_max = X[:,<span class="number">1</span>].<span class="built_in">min</span>() - <span class="number">1</span>, X[:,<span class="number">1</span>].<span class="built_in">max</span>() + <span class="number">1</span></span><br><span class="line">xx, yy = np.meshgrid(np.arange(x_min, x_max, <span class="number">0.1</span>), np.arange(y_min, y_max, <span class="number">0.1</span>))</span><br><span class="line"></span><br><span class="line">f, axarr = plt.subplots(<span class="number">2</span>, <span class="number">2</span>, sharex = <span class="string">&#x27;col&#x27;</span>, sharey = <span class="string">&#x27;row&#x27;</span>, figsize=(<span class="number">19</span>, <span class="number">8</span>))</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> idx, clf, tt <span class="keyword">in</span> <span class="built_in">zip</span>(product([<span class="number">0</span>, <span class="number">1</span>], [<span class="number">0</span>, <span class="number">1</span>]), [dtc, knc, svc, vc], [<span class="string">&#x27;Decision Tree (depth=4)&#x27;</span>, <span class="string">&#x27;KNN (k=7)&#x27;</span>, <span class="string">&#x27;Kernel SVM&#x27;</span>, <span class="string">&#x27;Soft Voting&#x27;</span>]):</span><br><span class="line">    Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])</span><br><span class="line">    Z = Z.reshape(xx.shape)</span><br><span class="line"></span><br><span class="line">    axarr[idx[<span class="number">0</span>], idx[<span class="number">1</span>]].contourf(xx, yy, Z, alpha=<span class="number">0.4</span>)</span><br><span class="line">    axarr[idx[<span class="number">0</span>], idx[<span class="number">1</span>]].scatter(X[:, <span class="number">0</span>], X[:, <span class="number">1</span>], c=y, s=<span class="number">20</span>, edgecolor=<span class="string">&#x27;k&#x27;</span>)</span><br><span class="line">    axarr[idx[<span class="number">0</span>], idx[<span class="number">1</span>]].set_title(tt)</span><br><span class="line"></span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure>
+
+<p><img src="voting-classifier-border.jpg"></p>
+<h4 id="朴素贝叶斯-Naive-Bayes"><a href="#朴素贝叶斯-Naive-Bayes" class="headerlink" title="朴素贝叶斯(Naive Bayes)"></a>朴素贝叶斯(Naive Bayes)</h4><p>    朴素贝叶斯是一种基于贝叶斯定理进行预测的机器学习算法，它之所以被称为“朴素”是因为它假设数据集当中的所有特征都是相互独立的，而在现实世界的数据中当然肯定不是这样的。</p>
+<h4 id="神经网络-Neural-networks"><a href="#神经网络-Neural-networks" class="headerlink" title="神经网络(Neural networks)"></a>神经网络(Neural networks)</h4><p>    神经网络是一种受到人脑结构和功能启发而研发出来的机器学习算法，模型结构由大量相互连接的节点(神经元)组成，模拟人脑的机制用于处理和传输信息。</p>
+<p>    深度学习中的“深度”只是指神经网络中层的深度。 由三个以上的层组成的神经网络（包含输入和输出）即可视为深度学习算法。 只有两层或三层的神经网络只是基本神经网络。</p>
+<h5 id="网络层"><a href="#网络层" class="headerlink" title="网络层"></a>网络层</h5><p>    （多层）感知机 MLP = 输入层 + 0个或多个隐藏层 + 输出层。</p>
+<p><img src="MLP.jpg"></p>
+<p>    根据数据的流转方向，分为：</p>
+<ul>
+<li><p>前馈神经网络</p>
+<p>输入数据，从输入层依次流向各隐藏层和输出层，没有同层之前的数据传递，后面层的输出数据也不会传递给前面层作为输入。</p>
+<blockquote>
+<p>卷积神经网络（CNN）类似于前馈网络，但它们通常用于图像识别、模式识别和/或计算机视觉处理。 这些卷积神经网络利用线性代数中的原理（尤其是矩阵乘法）来识别图像中的模式。</p>
+</blockquote>
+</li>
+<li><p>反馈神经网络</p>
+<p>输出数据可以作为同层或者上层的输入数据，并且需要考虑输出和输入之间的之后效应。</p>
+<blockquote>
+<p>循环神经网络（RNN）由其反馈回路来识别。 利用时间序列数据预测未来结果时，主要使用这些学习算法，比如股市预测或销量预测。</p>
+</blockquote>
+</li>
+</ul>
+<p><img src="neural-networks.jpg"></p>
+<h5 id="神经元"><a href="#神经元" class="headerlink" title="神经元"></a>神经元</h5><p>    网络层中处理信息的基本单元是M-P神经元模型。</p>
+<p><img src="M-P.jpg"></p>
+<ol>
+<li><p>$x_1$ ~ $x_n$ 为输入，数量一般为特征（因变量）的数量。</p>
+</li>
+<li><p>$w_1$ ~ $w_n$ 为每个x对应的权重，可以理解为对计算结果的重要性。</p>
+</li>
+<li><p>激活函数（Activation），通过聚合因变量x*权重w，并辅以Bias阈值，来决定最终的计算结果$\widehat{y}$，常见的激活函数图形如下：</p>
+</li>
+</ol>
+<p><img src="activation-function.jpg"></p>
+<h5 id="样例"><a href="#样例" class="headerlink" title="样例"></a>样例</h5><p>    <a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/377513272">机器学习初学：神经网络原理 + Python 简单实例</a></p>
+<p>    <a target="_blank" rel="noopener" href="https://victorzhou.com/blog/intro-to-neural-networks/">Machine Learning for Beginners: An Introduction to Neural Networks</a></p>
+<p><img src="neuron-network-demo.jpg"></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://zhuanlan.zhihu.com/p/377513272</span></span><br><span class="line"><span class="comment"># https://victorzhou.com/blog/intro-to-neural-networks/</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">sigmoid</span>(<span class="params">x</span>):</span></span><br><span class="line">    <span class="comment"># Sigmoid 激活函数: f(x) = 1 / (1 + e^(-x))</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span> / <span class="number">1</span> + np.exp(-x)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">deriv_sigmoid</span>(<span class="params">x</span>):</span></span><br><span class="line">    <span class="comment"># Sigmoid 的导数: f&#x27;(x) = f(x) * (1 - f(x))</span></span><br><span class="line">    fx = sigmoid(x)</span><br><span class="line">    <span class="keyword">return</span> fx * (<span class="number">1</span> - fx)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">mse_loss</span>(<span class="params">y_true, y_pred</span>):</span></span><br><span class="line">    <span class="comment"># y_true and y_pred 都是等长度的 numpy 数组.</span></span><br><span class="line">    <span class="keyword">return</span> ((y_true - y_pred)**<span class="number">2</span>).mean()</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">NeuralNetwork</span>:</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span>(<span class="params">self</span>):</span></span><br><span class="line">        self.w1 = np.random.normal()</span><br><span class="line">        self.w2 = np.random.normal()</span><br><span class="line">        self.w3 = np.random.normal()</span><br><span class="line">        self.w4 = np.random.normal()</span><br><span class="line">        self.w5 = np.random.normal()</span><br><span class="line">        self.w6 = np.random.normal()</span><br><span class="line"></span><br><span class="line">        self.b1 = np.random.normal()</span><br><span class="line">        self.b2 = np.random.normal()</span><br><span class="line">        self.b3 = np.random.normal()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">feedforward</span>(<span class="params">self, x</span>):</span></span><br><span class="line">        h1 = sigmoid(self.w1 * x[<span class="number">0</span>] + self.w2 * x[<span class="number">1</span>] + self.b1)</span><br><span class="line">        h2 = sigmoid(self.w3 * x[<span class="number">0</span>] + self.w4 * x[<span class="number">1</span>] + self.b2)</span><br><span class="line"></span><br><span class="line">        o1 = sigmoid(self.w5 * h1 + self.w6 * h2 + self.b3)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> o1</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">train</span>(<span class="params">self, data, all_y_trues</span>):</span></span><br><span class="line">        learn_rate = <span class="number">0.1</span></span><br><span class="line">        epochs = <span class="number">1000</span></span><br><span class="line">        lossdata = []</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> epoch <span class="keyword">in</span> <span class="built_in">range</span>(epochs):</span><br><span class="line">            <span class="keyword">for</span> x, y_true <span class="keyword">in</span> <span class="built_in">zip</span>(data, all_y_trues):</span><br><span class="line">                sum_h1 = self.w1 * x[<span class="number">0</span>] + self.w2 * x[<span class="number">1</span>] + self.b1</span><br><span class="line">                h1 = sigmoid(sum_h1)</span><br><span class="line"></span><br><span class="line">                sum_h2 = self.w3 * x[<span class="number">0</span>] + self.w4 * x[<span class="number">1</span>] + self.b2</span><br><span class="line">                h2 = sigmoid(sum_h2)</span><br><span class="line"></span><br><span class="line">                sum_o1 = self.w5 * h1 + self.w6 * h2 + self.b3</span><br><span class="line">                o1 = sigmoid(sum_o1)</span><br><span class="line">                y_pred = o1</span><br><span class="line"></span><br><span class="line">                <span class="comment"># --- 计算偏导数.</span></span><br><span class="line">                <span class="comment"># --- 命名方式：d_L_d_w1 代表 &quot;dL / dw1&quot;，即 L对 w1求偏导</span></span><br><span class="line">                d_L_d_ypred = -<span class="number">2</span> * (y_true - y_pred)</span><br><span class="line"></span><br><span class="line">                <span class="comment"># 神经元 o1</span></span><br><span class="line">                d_ypred_d_w5 = h1 * deriv_sigmoid(sum_o1)</span><br><span class="line">                d_ypred_d_w6 = h2 * deriv_sigmoid(sum_o1)</span><br><span class="line">                d_ypred_d_b3 = deriv_sigmoid(sum_o1)</span><br><span class="line"></span><br><span class="line">                d_ypred_d_h1 = self.w5 * deriv_sigmoid(sum_o1)</span><br><span class="line">                d_ypred_d_h2 = self.w6 * deriv_sigmoid(sum_o1)</span><br><span class="line"></span><br><span class="line">                <span class="comment"># 神经元 h1</span></span><br><span class="line">                d_h1_d_w1 = x[<span class="number">0</span>] * deriv_sigmoid(sum_h1)</span><br><span class="line">                d_h1_d_w2 = x[<span class="number">1</span>] * deriv_sigmoid(sum_h1)</span><br><span class="line">                d_h1_d_b1 = deriv_sigmoid(sum_h1)</span><br><span class="line"></span><br><span class="line">                <span class="comment"># 神经元 h2</span></span><br><span class="line">                d_h2_d_w3 = x[<span class="number">0</span>] * deriv_sigmoid(sum_h2)</span><br><span class="line">                d_h2_d_w4 = x[<span class="number">1</span>] * deriv_sigmoid(sum_h2)</span><br><span class="line">                d_h2_d_b2 = deriv_sigmoid(sum_h2)</span><br><span class="line"></span><br><span class="line">                <span class="comment"># --- 更新权重（w）与偏移量（b）</span></span><br><span class="line">                <span class="comment"># 神经元 h1</span></span><br><span class="line">                self.w1 -= learn_rate * d_L_d_ypred * d_ypred_d_h1 * d_h1_d_w1</span><br><span class="line">                self.w2 -= learn_rate * d_L_d_ypred * d_ypred_d_h1 * d_h1_d_w2</span><br><span class="line">                self.b1 -= learn_rate * d_L_d_ypred * d_ypred_d_h1 * d_h1_d_b1</span><br><span class="line"></span><br><span class="line">                <span class="comment"># 神经元 h2</span></span><br><span class="line">                self.w3 -= learn_rate * d_L_d_ypred * d_ypred_d_h2 * d_h2_d_w3</span><br><span class="line">                self.w4 -= learn_rate * d_L_d_ypred * d_ypred_d_h2 * d_h2_d_w4</span><br><span class="line">                self.b2 -= learn_rate * d_L_d_ypred * d_ypred_d_h2 * d_h2_d_b2</span><br><span class="line"></span><br><span class="line">                <span class="comment"># 神经元 o1</span></span><br><span class="line">                self.w5 -= learn_rate * d_L_d_ypred * d_ypred_d_w5</span><br><span class="line">                self.w6 -= learn_rate * d_L_d_ypred * d_ypred_d_w6</span><br><span class="line">                self.b3 -= learn_rate * d_L_d_ypred * d_ypred_d_b3</span><br><span class="line"></span><br><span class="line">            <span class="comment"># --- 在每10次迭代结束后计算总 loss并打印出来</span></span><br><span class="line">            <span class="keyword">if</span> epoch % <span class="number">10</span> == <span class="number">0</span>:</span><br><span class="line">                y_preds = np.apply_along_axis(self.feedforward, <span class="number">1</span>, data)</span><br><span class="line">                loss = mse_loss(all_y_trues, y_preds)</span><br><span class="line">                lossdata.append(loss)</span><br><span class="line">                <span class="built_in">print</span>(<span class="string">&quot;Epoch %d loss: %.3f&quot;</span> % (epoch, loss))</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> lossdata</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># 定义数据集 data</span></span><br><span class="line">data = np.array([</span><br><span class="line">    [-<span class="number">2</span>, -<span class="number">1</span>],  <span class="comment"># Alice</span></span><br><span class="line">    [<span class="number">25</span>, <span class="number">6</span>],  <span class="comment"># Bob</span></span><br><span class="line">    [<span class="number">17</span>, <span class="number">4</span>],  <span class="comment"># Charlie</span></span><br><span class="line">    [-<span class="number">15</span>, -<span class="number">6</span>],  <span class="comment"># Diana</span></span><br><span class="line">])</span><br><span class="line">all_y_trues = np.array([</span><br><span class="line">    <span class="number">1</span>,  <span class="comment"># Alice</span></span><br><span class="line">    <span class="number">0</span>,  <span class="comment"># Bob</span></span><br><span class="line">    <span class="number">0</span>,  <span class="comment"># Charlie</span></span><br><span class="line">    <span class="number">1</span>,  <span class="comment"># Diana</span></span><br><span class="line">])</span><br><span class="line"></span><br><span class="line"><span class="comment"># 训练我们的神经网络!</span></span><br><span class="line">network = NeuralNetwork()</span><br><span class="line">lossdata = network.train(data, all_y_trues)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 神经网络预测</span></span><br><span class="line">emily = np.array([-<span class="number">7</span>, -<span class="number">3</span>])  <span class="comment"># 128 磅, 63 英寸</span></span><br><span class="line">frank = np.array([<span class="number">20</span>, <span class="number">2</span>])   <span class="comment"># 155 磅, 68 英寸</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">&quot;Emily: %.3f&quot;</span> % network.feedforward(emily))  <span class="comment"># 0.951 - 女性</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">&quot;Frank: %.3f&quot;</span> % network.feedforward(frank))  <span class="comment"># 0.039 - 男性</span></span><br><span class="line"></span><br><span class="line">fig = plt.figure()</span><br><span class="line">ax = fig.add_subplot(<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>)</span><br><span class="line">ax.set_xlabel(<span class="string">&quot;epoch&quot;</span>)  <span class="comment"># 横坐标名</span></span><br><span class="line">ax.set_ylabel(<span class="string">&quot;loss&quot;</span>)   <span class="comment"># 纵坐标名</span></span><br><span class="line">ax.set_title(<span class="string">&quot;Neural Network Loss vs. Epochs&quot;</span>)</span><br><span class="line"></span><br><span class="line">epoch = <span class="built_in">range</span>(<span class="number">0</span>, <span class="number">1000</span>, <span class="number">10</span>)  <span class="comment"># 100个点</span></span><br><span class="line">plt.plot(epoch, lossdata)  <span class="comment"># 绘图</span></span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure>
+
+<p><img src="neuron-network-demo-plot.jpg"></p>
+<h3 id="评估"><a href="#评估" class="headerlink" title="评估"></a>评估</h3><h4 id="ROC-amp-AUC"><a href="#ROC-amp-AUC" class="headerlink" title="ROC &amp; AUC"></a>ROC &amp; AUC</h4><p>    纵坐标为 <strong>正例中被判断为正例的比率（TPR=TP/(TP+FN)</strong> ，**横坐标为负例中被判断为正例的比率（FPR=FP/(FP+TN)**，不断调整阈值就可以得到ROC曲线。</p>
+<p>    ROC 曲线下方的那部分面积的大小。通常，AUC的值介于0.5到1.0之间，较大的AUC代表了较好的性能。AUC（Area Under roc Curve）是一种用来度量分类模型好坏的一个标准。</p>
+<p><img src="roc-auc.jpg"></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># https://scikit-learn.org/stable/visualizations.html</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> sklearn.datasets <span class="keyword">import</span> load_wine</span><br><span class="line"><span class="keyword">from</span> sklearn.ensemble <span class="keyword">import</span> RandomForestClassifier</span><br><span class="line"><span class="keyword">from</span> sklearn.metrics <span class="keyword">import</span> RocCurveDisplay</span><br><span class="line"><span class="keyword">from</span> sklearn.model_selection <span class="keyword">import</span> train_test_split</span><br><span class="line"><span class="keyword">from</span> sklearn.svm <span class="keyword">import</span> SVC</span><br><span class="line"></span><br><span class="line">X, y = load_wine(return_X_y=<span class="literal">True</span>)</span><br><span class="line">y = y == <span class="number">2</span></span><br><span class="line"></span><br><span class="line">X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=<span class="number">42</span>)</span><br><span class="line">svc = SVC(random_state=<span class="number">42</span>)</span><br><span class="line">svc.fit(X_train, y_train)</span><br><span class="line"></span><br><span class="line"><span class="comment"># %%</span></span><br><span class="line"><span class="comment"># Plotting the ROC Curve</span></span><br><span class="line"><span class="comment"># ----------------------</span></span><br><span class="line"><span class="comment"># Next, we plot the ROC curve with a single call to</span></span><br><span class="line"><span class="comment"># :func:`sklearn.metrics.RocCurveDisplay.from_estimator`. The returned</span></span><br><span class="line"><span class="comment"># `svc_disp` object allows us to continue using the already computed ROC curve</span></span><br><span class="line"><span class="comment"># for the SVC in future plots.</span></span><br><span class="line">svc_disp = RocCurveDisplay.from_estimator(svc, X_test, y_test)</span><br><span class="line">plt.show()</span><br><span class="line"></span><br><span class="line"><span class="comment"># %%</span></span><br><span class="line"><span class="comment"># Training a Random Forest and Plotting the ROC Curve</span></span><br><span class="line"><span class="comment"># ---------------------------------------------------</span></span><br><span class="line"><span class="comment"># We train a random forest classifier and create a plot comparing it to the SVC</span></span><br><span class="line"><span class="comment"># ROC curve. Notice how `svc_disp` uses</span></span><br><span class="line"><span class="comment"># :func:`~sklearn.metrics.RocCurveDisplay.plot` to plot the SVC ROC curve</span></span><br><span class="line"><span class="comment"># without recomputing the values of the roc curve itself. Furthermore, we</span></span><br><span class="line"><span class="comment"># pass `alpha=0.8` to the plot functions to adjust the alpha values of the</span></span><br><span class="line"><span class="comment"># curves.</span></span><br><span class="line">rfc = RandomForestClassifier(n_estimators=<span class="number">10</span>, random_state=<span class="number">42</span>)</span><br><span class="line">rfc.fit(X_train, y_train)</span><br><span class="line">ax = plt.gca()</span><br><span class="line">rfc_disp = RocCurveDisplay.from_estimator(rfc, X_test, y_test, ax=ax, alpha=<span class="number">0.8</span>)</span><br><span class="line">svc_disp.plot(ax=ax, alpha=<span class="number">0.8</span>)</span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure>
+
+<p><img src="svm-roc-plot.jpg"></p>
+<p><img src="svc-rf-roc-plot.jpg"></p>
+<p>    从ROC曲线的AUC值来看，在这个测试用例中，随机森林的分类效果好于支持向量机。</p>
+<h4 id="Cross-Validation"><a href="#Cross-Validation" class="headerlink" title="Cross-Validation"></a>Cross-Validation</h4><p>    为避免数据的划分影响模型的评估结果，可以不划分验证数据集。例如最基本的交叉验证方法是K折交叉验证（k-fold CV，将训练数据集划分为k个子集，以此充当验证数据集，循环执行。</p>
+<p><img src="k-fold-CV.jpg"></p>
+<h4 id="梯度下降"><a href="#梯度下降" class="headerlink" title="梯度下降"></a>梯度下降</h4><p>    通过数学中求导的方式，找到损失函数的最低点，以此来确定模型参数的最优解。</p>
+<h4 id="反向传播（BP算法）"><a href="#反向传播（BP算法）" class="headerlink" title="反向传播（BP算法）"></a>反向传播（BP算法）</h4><p>    将损失值反向传播，重新运算，降低损失值，直到找到满意的参数组合。</p>
+<h2 id="常用库"><a href="#常用库" class="headerlink" title="常用库"></a>常用库</h2><h3 id="numpy"><a href="#numpy" class="headerlink" title="numpy"></a>numpy</h3><h3 id="scikit-learn"><a href="#scikit-learn" class="headerlink" title="scikit-learn"></a>scikit-learn</h3><h3 id="pandas"><a href="#pandas" class="headerlink" title="pandas"></a>pandas</h3><h3 id="tensorflow"><a href="#tensorflow" class="headerlink" title="tensorflow"></a>tensorflow</h3><h3 id="pytorch"><a href="#pytorch" class="headerlink" title="pytorch"></a>pytorch</h3><h3 id="matplotlib"><a href="#matplotlib" class="headerlink" title="matplotlib"></a>matplotlib</h3>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ML/" rel="tag"># ML</a>
+              <a href="/tags/AI/" rel="tag"># AI</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/10/30/%E4%BD%BF%E7%94%A8ProtoBuffers%E5%92%8CGolang%E7%BC%96%E5%86%99gRPC%E6%9C%8D%E5%8A%A1/" rel="prev" title="使用ProtoBuffers和Golang编写gRPC服务">
+      <i class="fa fa-chevron-left"></i> 使用ProtoBuffers和Golang编写gRPC服务
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/" rel="next" title="运维杂记（一）">
+      运维杂记（一） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD"><span class="nav-number">1.1.</span> <span class="nav-text">人工智能</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0"><span class="nav-number">1.2.</span> <span class="nav-text">机器学习</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-number">2.</span> <span class="nav-text">基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%AF%E8%AF%AD"><span class="nav-number">2.1.</span> <span class="nav-text">术语</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%87%E6%8B%9F%E5%90%88"><span class="nav-number">2.1.1.</span> <span class="nav-text">过拟合</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B6%85%E5%8F%82%E6%95%B0"><span class="nav-number">2.1.2.</span> <span class="nav-text">超参数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8D%9F%E5%A4%B1%E5%87%BD%E6%95%B0"><span class="nav-number">2.1.3.</span> <span class="nav-text">损失函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%AD%A3%E5%88%99%E5%8C%96"><span class="nav-number">2.1.4.</span> <span class="nav-text">正则化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%87%E5%87%86%E5%8C%96-%E5%BD%92%E4%B8%80%E5%8C%96"><span class="nav-number">2.1.5.</span> <span class="nav-text">标准化&#x2F;归一化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E9%9B%86"><span class="nav-number">2.2.</span> <span class="nav-text">数据集</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.3.</span> <span class="nav-text">模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AE%97%E6%B3%95"><span class="nav-number">2.3.1.</span> <span class="nav-text">算法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BA%BF%E6%80%A7%E5%9B%9E%E5%BD%92-Linear-regression%EF%BC%89"><span class="nav-number">2.3.1.1.</span> <span class="nav-text">线性回归(Linear regression）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%80%BB%E8%BE%91%E5%9B%9E%E5%BD%92%EF%BC%88Logistic-regression%EF%BC%89"><span class="nav-number">2.3.1.2.</span> <span class="nav-text">逻辑回归（Logistic regression）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%86%B3%E7%AD%96%E6%A0%91-Decision-trees"><span class="nav-number">2.3.1.3.</span> <span class="nav-text">决策树(Decision trees)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%9A%8F%E6%9C%BA%E6%A3%AE%E6%9E%97-Random-forests"><span class="nav-number">2.3.1.4.</span> <span class="nav-text">随机森林(Random forests)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#K%E6%9C%80%E8%BF%91%E9%82%BB%EF%BC%88KNN%EF%BC%89"><span class="nav-number">2.3.1.5.</span> <span class="nav-text">K最近邻（KNN）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#K%E5%9D%87%E5%80%BC%E8%81%9A%E7%B1%BB%E7%AE%97%E6%B3%95-K-Means"><span class="nav-number">2.3.1.6.</span> <span class="nav-text">K均值聚类算法(K-Means)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%94%AF%E6%8C%81%E5%90%91%E9%87%8F%E6%9C%BA%EF%BC%88SVM%EF%BC%89"><span class="nav-number">2.3.1.7.</span> <span class="nav-text">支持向量机（SVM）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9C%B4%E7%B4%A0%E8%B4%9D%E5%8F%B6%E6%96%AF-Naive-Bayes"><span class="nav-number">2.3.1.8.</span> <span class="nav-text">朴素贝叶斯(Naive Bayes)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C-Neural-networks"><span class="nav-number">2.3.1.9.</span> <span class="nav-text">神经网络(Neural networks)</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E5%B1%82"><span class="nav-number">2.3.1.9.1.</span> <span class="nav-text">网络层</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%A5%9E%E7%BB%8F%E5%85%83"><span class="nav-number">2.3.1.9.2.</span> <span class="nav-text">神经元</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%A0%B7%E4%BE%8B"><span class="nav-number">2.3.1.9.3.</span> <span class="nav-text">样例</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%84%E4%BC%B0"><span class="nav-number">2.3.2.</span> <span class="nav-text">评估</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#ROC-amp-AUC"><span class="nav-number">2.3.2.1.</span> <span class="nav-text">ROC &amp; AUC</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Cross-Validation"><span class="nav-number">2.3.2.2.</span> <span class="nav-text">Cross-Validation</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%A2%AF%E5%BA%A6%E4%B8%8B%E9%99%8D"><span class="nav-number">2.3.2.3.</span> <span class="nav-text">梯度下降</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%8D%E5%90%91%E4%BC%A0%E6%92%AD%EF%BC%88BP%E7%AE%97%E6%B3%95%EF%BC%89"><span class="nav-number">2.3.2.4.</span> <span class="nav-text">反向传播（BP算法）</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E5%BA%93"><span class="nav-number">2.4.</span> <span class="nav-text">常用库</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#numpy"><span class="nav-number">2.4.1.</span> <span class="nav-text">numpy</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#scikit-learn"><span class="nav-number">2.4.2.</span> <span class="nav-text">scikit-learn</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#pandas"><span class="nav-number">2.4.3.</span> <span class="nav-text">pandas</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#tensorflow"><span class="nav-number">2.4.4.</span> <span class="nav-text">tensorflow</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#pytorch"><span class="nav-number">2.4.5.</span> <span class="nav-text">pytorch</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#matplotlib"><span class="nav-number">2.4.6.</span> <span class="nav-text">matplotlib</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

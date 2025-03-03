@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言​    Istio使用Sidecar的方式劫持应用的流量，从而为应用透明地提供一些服务治理、监控的功能。在Kubernetes集群中，Pod可以通过定义Service，借由Kube-Proxy的四层负载均衡，实现Pod之间的通信。这两种方式都是通过定义Iptables规则，对流量进行劫持转发实现的，在学习Istio的过程中，经常会对两种方式的通信方式产生疑惑和混淆，本文通过案例分析Istio">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ServiceMesh-Istio Sidecar流量劫持">
+<meta property="og:url" content="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言​    Istio使用Sidecar的方式劫持应用的流量，从而为应用透明地提供一些服务治理、监控的功能。在Kubernetes集群中，Pod可以通过定义Service，借由Kube-Proxy的四层负载均衡，实现Pod之间的通信。这两种方式都是通过定义Iptables规则，对流量进行劫持转发实现的，在学习Istio的过程中，经常会对两种方式的通信方式产生疑惑和混淆，本文通过案例分析Istio">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/envoy-sidecar-traffic-interception.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/server-listener-15006.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/istio-netfilter.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/Istio-cilium.png">
+<meta property="article:published_time" content="2022-02-11T16:00:00.000Z">
+<meta property="article:modified_time" content="2022-02-11T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Istio">
+<meta property="article:tag" content="Envoy">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/envoy-sidecar-traffic-interception.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>ServiceMesh-Istio Sidecar流量劫持 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2022/02/12/ServiceMesh-Istio%20Sidecar%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ServiceMesh-Istio Sidecar流量劫持
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-02-12 00:00:00" itemprop="dateCreated datePublished" datetime="2022-02-12T00:00:00+08:00">2022-02-12</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ServiceMesh/" itemprop="url" rel="index"><span itemprop="name">ServiceMesh</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>​    Istio使用Sidecar的方式劫持应用的流量，从而为应用透明地提供一些服务治理、监控的功能。在Kubernetes集群中，Pod可以通过定义Service，借由Kube-Proxy的四层负载均衡，实现Pod之间的通信。这两种方式都是通过定义Iptables规则，对流量进行劫持转发实现的，在学习Istio的过程中，经常会对两种方式的通信方式产生疑惑和混淆，本文通过案例分析Istio Sidecar的流量劫持方式，深入理解Istio的流量通信机制。</p>
+<h1 id="流量劫持"><a href="#流量劫持" class="headerlink" title="流量劫持"></a>流量劫持</h1><h2 id="环境说明"><a href="#环境说明" class="headerlink" title="环境说明"></a>环境说明</h2><p>​    （1）本文的实验环境</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kubernetes</td>
+<td>v1.20.11</td>
+</tr>
+<tr>
+<td>Istio operator</td>
+<td>1.12.1</td>
+</tr>
+<tr>
+<td>httpbin</td>
+<td>latest</td>
+</tr>
+</tbody></table>
+<p>​    （2）部署情况说明</p>
+<p>​    通过如下命令，在sidecar分区开启了sidecar的注入，然后分别部署了sleep服务（curl工具）和httpbin的服务，从curl工具的pod中通过service的域名访问httpbin服务来分析网格中不同Pod之间的流量通信方式。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"># 开启sidecar的注入</span><br><span class="line">kubectl label namespace sidecar istio-injection&#x3D;enabled</span><br><span class="line"></span><br><span class="line"># curl测试httpbin服务</span><br><span class="line">curl httpbin&#x2F;get</span><br><span class="line"></span><br><span class="line">&#123;</span><br><span class="line">  &quot;args&quot;: &#123;&#125;,</span><br><span class="line">  &quot;headers&quot;: &#123;</span><br><span class="line">    &quot;Accept&quot;: &quot;*&#x2F;*&quot;,</span><br><span class="line">    &quot;Host&quot;: &quot;httpbin&quot;,</span><br><span class="line">    &quot;User-Agent&quot;: &quot;curl&#x2F;7.81.0-DEV&quot;,</span><br><span class="line">    &quot;X-B3-Parentspanid&quot;: &quot;7401b316a7be3d2d&quot;,</span><br><span class="line">    &quot;X-B3-Sampled&quot;: &quot;0&quot;,</span><br><span class="line">    &quot;X-B3-Spanid&quot;: &quot;ac54e1bea35a534e&quot;,</span><br><span class="line">    &quot;X-B3-Traceid&quot;: &quot;92c6639fb8a764707401b316a7be3d2d&quot;,</span><br><span class="line">    &quot;X-Envoy-Attempt-Count&quot;: &quot;1&quot;,</span><br><span class="line">    &quot;X-Forwarded-Client-Cert&quot;: &quot;By&#x3D;spiffe:&#x2F;&#x2F;cluster.local&#x2F;ns&#x2F;shadow&#x2F;sa&#x2F;default;Hash&#x3D;d6ad76288ec25532207928f784f8f99abdd9f74f97330feb60de9290fa35cf98;Subject&#x3D;\&quot;\&quot;;URI&#x3D;spiffe:&#x2F;&#x2F;cluster.local&#x2F;n</span><br><span class="line">s&#x2F;shadow&#x2F;sa&#x2F;sleep&quot;</span><br><span class="line">  &#125;,</span><br><span class="line">  &quot;origin&quot;: &quot;127.0.0.6&quot;,</span><br><span class="line">  &quot;url&quot;: &quot;http:&#x2F;&#x2F;httpbin&#x2F;get&quot;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="过程分析"><a href="#过程分析" class="headerlink" title="过程分析"></a>过程分析</h2><p>​    <img src="envoy-sidecar-traffic-interception.png" alt="envoy-sidecar-traffic-interception"></p>
+<p>​                                                                                                                          <a target="_blank" rel="noopener" href="https://jimmysong.io/blog/sidecar-injection-iptables-and-traffic-routing/">图片出处及原文链接</a></p>
+<p>​    对照上述图片，当使用curl工具访问httpbin服务时，实际数据包的流向过程如下：</p>
+<h3 id="客户端数据包发出"><a href="#客户端数据包发出" class="headerlink" title="客户端数据包发出"></a>客户端数据包发出</h3><p>​    sleep服务Pod中实际的Iptables规则如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">nsenter -t 2156522 -n iptables-save -t nat</span><br><span class="line"># Generated by iptables-save v1.8.4 on Fri Jan 28 15:05:19 2022</span><br><span class="line">*nat</span><br><span class="line">:PREROUTING ACCEPT [143:8580]</span><br><span class="line">:INPUT ACCEPT [143:8580]</span><br><span class="line">:OUTPUT ACCEPT [294:32758]</span><br><span class="line">:POSTROUTING ACCEPT [294:32758]</span><br><span class="line">:ISTIO_INBOUND - [0:0]</span><br><span class="line">:ISTIO_IN_REDIRECT - [0:0]</span><br><span class="line">:ISTIO_OUTPUT - [0:0]</span><br><span class="line">:ISTIO_REDIRECT - [0:0]</span><br><span class="line">-A PREROUTING -p tcp -j ISTIO_INBOUND</span><br><span class="line">-A OUTPUT -p tcp -j ISTIO_OUTPUT</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15008 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 22 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15090 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15021 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15020 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -j ISTIO_IN_REDIRECT</span><br><span class="line">-A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006</span><br><span class="line">-A ISTIO_OUTPUT -s 127.0.0.6&#x2F;32 -o lo -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT ! -d 127.0.0.1&#x2F;32 -o lo -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT</span><br><span class="line">-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT ! -d 127.0.0.1&#x2F;32 -o lo -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT</span><br><span class="line">-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -d 127.0.0.1&#x2F;32 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -j ISTIO_REDIRECT</span><br><span class="line">-A ISTIO_REDIRECT -p tcp -j REDIRECT --to-ports 15001</span><br><span class="line">COMMIT</span><br><span class="line"># Completed on Fri Jan 28 15:05:19 2022</span><br></pre></td></tr></table></figure>
+
+<p>（1）DNS解析获取Cluster IP</p>
+<p>​    在sleep的Pod中，首先通过DNS服务，查找httpbin的域名所指向的IP。获取到获取到服务的cluster ip后，然后向这个地址的80端口发送请求数据。</p>
+<p>（2）出口流量拦截</p>
+<p>​    数据包进入内核网络协议栈，如图⑨进入OUTPUT - ⑩ -&gt; ISTIO_OUTPUT - ⑪ -&gt; ISTIO_REDIRECT - ⑫ -&gt; 进入sidecar的15001端口。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">$ istioctl.exe pc listeners -n sidecar sleep-557747455f-mgh4d --port&#x3D;15001</span><br><span class="line">ADDRESS PORT  MATCH         DESTINATION</span><br><span class="line">0.0.0.0 15001 ALL           PassthroughCluster</span><br><span class="line">0.0.0.0 15001 Addr: *:15001 Non-HTTP&#x2F;Non-TCP</span><br></pre></td></tr></table></figure>
+
+<p>（3）Outbound Handler</p>
+<p>​    Envoy从15001接收数据包后，数据包的访问域名是httpbin，端口是80。查找name=80的路由信息，通过比对域名和端口，找到对应的VirtualHost，匹配路由，找到需要转发到的Cluster：outbound|80||httpbin.sidecar.svc.cluster.local。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line">istioctl.exe pc routes -n sidecar sleep-557747455f-mgh4d --name&#x3D;80 -ojson</span><br><span class="line"></span><br><span class="line">&#123;</span><br><span class="line">	&quot;name&quot;: &quot;httpbin.sidecar.svc.cluster.local:80&quot;,</span><br><span class="line">	&quot;domains&quot;: [</span><br><span class="line">		&quot;httpbin.sidecar.svc.cluster.local&quot;,</span><br><span class="line">		&quot;httpbin.sidecar.svc.cluster.local:80&quot;,</span><br><span class="line">		&quot;httpbin&quot;,</span><br><span class="line">		&quot;httpbin:80&quot;,</span><br><span class="line">		&quot;httpbin.sidecar.svc&quot;,</span><br><span class="line">		&quot;httpbin.sidecar.svc:80&quot;,</span><br><span class="line">		&quot;httpbin.sidecar&quot;,</span><br><span class="line">		&quot;httpbin.sidecar:80&quot;,</span><br><span class="line">		&quot;172.16.250.35&quot;,</span><br><span class="line">		&quot;172.16.250.35:80&quot;</span><br><span class="line">	],</span><br><span class="line">	&quot;routes&quot;: [</span><br><span class="line">		&#123;</span><br><span class="line">			&quot;name&quot;: &quot;default&quot;,</span><br><span class="line">			&quot;match&quot;: &#123;</span><br><span class="line">				&quot;prefix&quot;: &quot;&#x2F;&quot;</span><br><span class="line">			&#125;,</span><br><span class="line">			&quot;route&quot;: &#123;</span><br><span class="line">				&quot;cluster&quot;: &quot;outbound|80||httpbin.sidecar.svc.cluster.local&quot;,</span><br><span class="line">				&quot;timeout&quot;: &quot;0s&quot;,</span><br><span class="line">				&quot;retryPolicy&quot;: &#123;</span><br><span class="line">					&quot;retryOn&quot;: &quot;connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes&quot;,</span><br><span class="line">					&quot;numRetries&quot;: 2,</span><br><span class="line">					&quot;retryHostPredicate&quot;: [</span><br><span class="line">						&#123;</span><br><span class="line">							&quot;name&quot;: &quot;envoy.retry_host_predicates.previous_hosts&quot;</span><br><span class="line">						&#125;</span><br><span class="line">					],</span><br><span class="line">					&quot;hostSelectionRetryMaxAttempts&quot;: &quot;5&quot;,</span><br><span class="line">					&quot;retriableStatusCodes&quot;: [</span><br><span class="line">						503</span><br><span class="line">					]</span><br><span class="line">				&#125;,</span><br><span class="line">				&quot;maxStreamDuration&quot;: &#123;</span><br><span class="line">					&quot;maxStreamDuration&quot;: &quot;0s&quot;,</span><br><span class="line">					&quot;grpcTimeoutHeaderMax&quot;: &quot;0s&quot;</span><br><span class="line">				&#125;</span><br><span class="line">			&#125;,</span><br><span class="line">			&quot;decorator&quot;: &#123;</span><br><span class="line">				&quot;operation&quot;: &quot;httpbin.sidecar.svc.cluster.local:80&#x2F;*&quot;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	],</span><br><span class="line">	&quot;includeRequestAttemptCount&quot;: true</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    查看Cluster关联的Endpoints信息，发现最终定位到的IP为httpbin的Pod IP：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$ istioctl.exe pc endpoints -n sidecar sleep-557747455f-mgh4d --cluster&#x3D;&quot;outbound|80||httpbin.sidecar.svc.cluster.local&quot;</span><br><span class="line">ENDPOINT            STATUS      OUTLIER CHECK     CLUSTER</span><br><span class="line">172.16.0.218:80     HEALTHY     OK                outbound|80||httpbin.sidecar.svc.cluster.local</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$ kubectl get pod -n sidecar -o wide</span><br><span class="line">NAME                       READY   STATUS    RESTARTS   AGE   IP             NODE                     NOMINATED NODE   READINESS GATES</span><br><span class="line">httpbin-5bc89f56dd-8n5cx   2&#x2F;2     Running   0          34m   172.16.0.218   kube-node-xx-xx-xx-xx   &lt;none&gt;           &lt;none&gt;</span><br><span class="line">sleep-557747455f-mgh4d     2&#x2F;2     Running   0          34m   172.16.0.219   kube-node-xx-xx-xx-xx   &lt;none&gt;           &lt;none&gt;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>​    经过Outbound Handler处理过后的数据包，找到了httpbin的Pod IP。然后进入内核协议栈，经由</p>
+<p>​        ⑬ -&gt;OUTPUT - ⑭ -&gt; ISTIO_OUTPUT - ⑯ -&gt; POSTTOUTING - ⑰ -&gt; 从sleep的pod发出。    </p>
+<h3 id="Pod间通信"><a href="#Pod间通信" class="headerlink" title="Pod间通信"></a>Pod间通信</h3><p> （4）数据包在K8S集群中，通过网络插件，实现Pod之间通过IP进行通信，这个过程这里不详细分析。</p>
+<h3 id="服务端数据包接收"><a href="#服务端数据包接收" class="headerlink" title="服务端数据包接收"></a>服务端数据包接收</h3><p>​    httpbin服务Pod中的Iptables规则：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"> nsenter -t 2154864 -n iptables-save -t nat</span><br><span class="line"># Generated by iptables-save v1.8.4 on Fri Jan 28 15:47:02 2022</span><br><span class="line">*nat</span><br><span class="line">:PREROUTING ACCEPT [1403:84180]</span><br><span class="line">:INPUT ACCEPT [1403:84180]</span><br><span class="line">:OUTPUT ACCEPT [5404:647880]</span><br><span class="line">:POSTROUTING ACCEPT [5404:647880]</span><br><span class="line">:ISTIO_INBOUND - [0:0]</span><br><span class="line">:ISTIO_IN_REDIRECT - [0:0]</span><br><span class="line">:ISTIO_OUTPUT - [0:0]</span><br><span class="line">:ISTIO_REDIRECT - [0:0]</span><br><span class="line">-A PREROUTING -p tcp -j ISTIO_INBOUND</span><br><span class="line">-A OUTPUT -p tcp -j ISTIO_OUTPUT</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15008 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 22 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15090 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15021 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -m tcp --dport 15020 -j RETURN</span><br><span class="line">-A ISTIO_INBOUND -p tcp -j ISTIO_IN_REDIRECT</span><br><span class="line">-A ISTIO_IN_REDIRECT -p tcp -j REDIRECT --to-ports 15006</span><br><span class="line">-A ISTIO_OUTPUT -s 127.0.0.6&#x2F;32 -o lo -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT ! -d 127.0.0.1&#x2F;32 -o lo -m owner --uid-owner 1337 -j ISTIO_IN_REDIRECT</span><br><span class="line">-A ISTIO_OUTPUT -o lo -m owner ! --uid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -m owner --uid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT ! -d 127.0.0.1&#x2F;32 -o lo -m owner --gid-owner 1337 -j ISTIO_IN_REDIRECT</span><br><span class="line">-A ISTIO_OUTPUT -o lo -m owner ! --gid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -m owner --gid-owner 1337 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -d 127.0.0.1&#x2F;32 -j RETURN</span><br><span class="line">-A ISTIO_OUTPUT -j ISTIO_REDIRECT</span><br><span class="line">-A ISTIO_REDIRECT -p tcp -j REDIRECT --to-ports 15001</span><br><span class="line">COMMIT</span><br><span class="line"># Completed on Fri Jan 28 15:47:02 2022</span><br></pre></td></tr></table></figure>
+
+<p>（5）入口流量拦截</p>
+<p>​    数据包使用Pod IP + Port由①进入目标Pod。然后进入到内核协议栈，经由</p>
+<p>​        PREROUTING - ② -&gt; ISTIO_INBOUND - ③ -&gt; ISTIO_IN_REDIRECT 进入sidecat的15006端口。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ istioctl.exe pc listeners -n sidecar httpbin-5bc89f56dd-8n5cx --port&#x3D;15006</span><br></pre></td></tr></table></figure>
+
+<p><img src="server-listener-15006.png" alt="server-listener-15006"></p>
+<p>（6）Inbound Handler</p>
+<p>​        Envoy从15006接收到数据包后，会交由inbound_0.0.0.0_80监听器处理 -&gt; inbound|80|| route处理 -&gt;</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line">istioctl.exe pc route -n sidecar httpbin-5bc89f56dd-hntgz --name&#x3D;80 -o json </span><br><span class="line"></span><br><span class="line">&#123;</span><br><span class="line">	&quot;name&quot;: &quot;httpbin.sidecar.svc.cluster.local:80&quot;,</span><br><span class="line">	&quot;domains&quot;: [</span><br><span class="line">		&quot;httpbin.sidecar.svc.cluster.local&quot;,</span><br><span class="line">		&quot;httpbin.sidecar.svc.cluster.local:80&quot;,</span><br><span class="line">		&quot;httpbin&quot;,</span><br><span class="line">		&quot;httpbin:80&quot;,</span><br><span class="line">		&quot;httpbin.sidecar.svc&quot;,</span><br><span class="line">		&quot;httpbin.sidecar.svc:80&quot;,</span><br><span class="line">		&quot;httpbin.sidecar&quot;,</span><br><span class="line">		&quot;httpbin.sidecar:80&quot;,</span><br><span class="line">		&quot;172.16.250.35&quot;,</span><br><span class="line">		&quot;172.16.250.35:80&quot;</span><br><span class="line">	],</span><br><span class="line">	&quot;routes&quot;: [</span><br><span class="line">		&#123;</span><br><span class="line">			&quot;name&quot;: &quot;default&quot;,</span><br><span class="line">			&quot;match&quot;: &#123;</span><br><span class="line">				&quot;prefix&quot;: &quot;&#x2F;&quot;</span><br><span class="line">			&#125;,</span><br><span class="line">			&quot;route&quot;: &#123;</span><br><span class="line">				&quot;cluster&quot;: &quot;outbound|80||httpbin.sidecar.svc.cluster.local&quot;,</span><br><span class="line">				&quot;timeout&quot;: &quot;0s&quot;,</span><br><span class="line">				&quot;retryPolicy&quot;: &#123;</span><br><span class="line">					&quot;retryOn&quot;: &quot;connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes&quot;,</span><br><span class="line">					&quot;numRetries&quot;: 2,</span><br><span class="line">					&quot;retryHostPredicate&quot;: [</span><br><span class="line">						&#123;</span><br><span class="line">							&quot;name&quot;: &quot;envoy.retry_host_predicates.previous_hosts&quot;</span><br><span class="line">						&#125;</span><br><span class="line">					],</span><br><span class="line">					&quot;hostSelectionRetryMaxAttempts&quot;: &quot;5&quot;,</span><br><span class="line">					&quot;retriableStatusCodes&quot;: [</span><br><span class="line">						503</span><br><span class="line">					]</span><br><span class="line">				&#125;,</span><br><span class="line">				&quot;maxStreamDuration&quot;: &#123;</span><br><span class="line">					&quot;maxStreamDuration&quot;: &quot;0s&quot;,</span><br><span class="line">					&quot;grpcTimeoutHeaderMax&quot;: &quot;0s&quot;</span><br><span class="line">				&#125;</span><br><span class="line">			&#125;,</span><br><span class="line">			&quot;decorator&quot;: &#123;</span><br><span class="line">				&quot;operation&quot;: &quot;httpbin.sidecar.svc.cluster.local:80&#x2F;*&quot;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	],</span><br><span class="line">	&quot;includeRequestAttemptCount&quot;: true</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    Inbound Handler最终也会将数据包转发给cluster：outbound|80||httpbin.sidecar.svc.cluster.local。最后找到httpbin服务的Pod IP，发现是自己的IP，然后将目标地址转化为127.0.0.1。然后以这个地址向外发出数据包。进入内核协议栈后：</p>
+<p>​        ⑤ -&gt; OUTPUT - ⑥ -&gt; ISTIO_OUTPUT - ⑦ -&gt; POSTROUTING - ⑧ -&gt; 发往本地应用容器。   </p>
+<h1 id="总结拓展"><a href="#总结拓展" class="headerlink" title="总结拓展"></a>总结拓展</h1><p>​    目前Istio在生产环境下主要有以下几点需要着重考虑的点：</p>
+<ol>
+<li>从上述数据包的流转不难看出，客户端与服务端的单向通信，需要经过两次Sidecar的拦截，数据包频繁地出入内核协议栈，在用户空间和内核空间之间拷贝，效率必然会有所下降。</li>
+<li>默认情况下，每个Sidecar的代理都包含了整个集群的配置，配置文件非常庞大，而在集群中，代理的数量又是伴随着业务容器的增长而不断增加，不但增加了内存资源的消耗，同时也增加了维护的成本。</li>
+<li>应用之间所有的通信都托管给了sidecar，重度依赖sidecar，因此需要考虑sidecar与应用容器之间的启停顺序。</li>
+<li>Sidecar作为中间件，是需要维护升级的，而业务又是不允许中断的，如何对Sidecar进行热升级。</li>
+</ol>
+<h2 id="eBPF技术"><a href="#eBPF技术" class="headerlink" title="eBPF技术"></a>eBPF技术</h2><p>​    使用eBPF技术可以优化Istio的数据转发路径，加速数据转发：</p>
+<p>​    （1）使用SocketMap可以减少应用容器与Sidecar之间的数据路径，加快数据包的流转。</p>
+<p>​    （2）使用XDP可以在网络协议栈之前，在网卡上就处理掉协议包的转发。</p>
+<p>​    （3）使用Traffic Control可以进行流量控制。</p>
+<p>​    目前比较火的Cilium就是这样的一站式K8S网络解决方案。</p>
+<p><img src="istio-netfilter.png" alt="istio-netfilter"></p>
+<p><img src="Istio-cilium.png" alt="Istio-cilium"></p>
+<h2 id="代理瘦身"><a href="#代理瘦身" class="headerlink" title="代理瘦身"></a>代理瘦身</h2><h3 id="服务按需暴露"><a href="#服务按需暴露" class="headerlink" title="服务按需暴露"></a>服务按需暴露</h3><p>​    Istio提供了exportTo限定服务对Sidecar的可见性，来控制服务的可见性，从而减小Envoy的配置大小。</p>
+<h3 id="节点统一代理"><a href="#节点统一代理" class="headerlink" title="节点统一代理"></a>节点统一代理</h3><p>​    目前也有sidecar per node的一些方案，但同时也有一些问题，但同时也会带来一些例如单点的问题。</p>
+<h2 id="热升级"><a href="#热升级" class="headerlink" title="热升级"></a>热升级</h2><p>​    阿里的OpenKruise 通过引入Empty容器，实现热升级。</p>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/openkruise/kruise/blob/master/README-zh_CN.md">OpenKruise</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+              <a href="/tags/Envoy/" rel="tag"># Envoy</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/01/27/ServiceMesh-Istio%20Ingress%20Gateway/" rel="prev" title="ServiceMesh-Istio Ingress Gateway">
+      <i class="fa fa-chevron-left"></i> ServiceMesh-Istio Ingress Gateway
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/03/12/BPF-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" rel="next" title="eBPF-基础知识">
+      eBPF-基础知识 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%B5%81%E9%87%8F%E5%8A%AB%E6%8C%81"><span class="nav-number">2.</span> <span class="nav-text">流量劫持</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%8E%AF%E5%A2%83%E8%AF%B4%E6%98%8E"><span class="nav-number">2.1.</span> <span class="nav-text">环境说明</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%BF%87%E7%A8%8B%E5%88%86%E6%9E%90"><span class="nav-number">2.2.</span> <span class="nav-text">过程分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%95%B0%E6%8D%AE%E5%8C%85%E5%8F%91%E5%87%BA"><span class="nav-number">2.2.1.</span> <span class="nav-text">客户端数据包发出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Pod%E9%97%B4%E9%80%9A%E4%BF%A1"><span class="nav-number">2.2.2.</span> <span class="nav-text">Pod间通信</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E7%AB%AF%E6%95%B0%E6%8D%AE%E5%8C%85%E6%8E%A5%E6%94%B6"><span class="nav-number">2.2.3.</span> <span class="nav-text">服务端数据包接收</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93%E6%8B%93%E5%B1%95"><span class="nav-number">3.</span> <span class="nav-text">总结拓展</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#eBPF%E6%8A%80%E6%9C%AF"><span class="nav-number">3.1.</span> <span class="nav-text">eBPF技术</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%A3%E7%90%86%E7%98%A6%E8%BA%AB"><span class="nav-number">3.2.</span> <span class="nav-text">代理瘦身</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E6%8C%89%E9%9C%80%E6%9A%B4%E9%9C%B2"><span class="nav-number">3.2.1.</span> <span class="nav-text">服务按需暴露</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%8A%82%E7%82%B9%E7%BB%9F%E4%B8%80%E4%BB%A3%E7%90%86"><span class="nav-number">3.2.2.</span> <span class="nav-text">节点统一代理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%83%AD%E5%8D%87%E7%BA%A7"><span class="nav-number">3.3.</span> <span class="nav-text">热升级</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

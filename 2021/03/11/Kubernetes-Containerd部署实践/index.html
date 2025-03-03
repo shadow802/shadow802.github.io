@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="​    K8S 1.20 版本发布后，即将废弃对Docker的支持。 概念介绍cri（Container runtime interface） ​       cri is a containerd plugin implementation of Kubernetes container runtime interface（CRI）.  ​       cri是Kubernetes的容器运行时">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes-Containerd部署实践">
+<meta property="og:url" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="​    K8S 1.20 版本发布后，即将废弃对Docker的支持。 概念介绍cri（Container runtime interface） ​       cri is a containerd plugin implementation of Kubernetes container runtime interface（CRI）.  ​       cri是Kubernetes的容器运行时">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/cri.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/containerd.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/kubelet.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/kata-vs-container.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/kata-with-docker.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/kata-in-kubernetes.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/arch.png">
+<meta property="article:published_time" content="2021-03-10T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-03-10T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Sealos">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/cri.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes-Containerd部署实践 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes-Containerd部署实践
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-03-11 00:00:00" itemprop="dateCreated datePublished" datetime="2021-03-11T00:00:00+08:00">2021-03-11</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​    K8S 1.20 版本发布后，即将废弃对Docker的支持。</p>
+<h1 id="概念介绍"><a href="#概念介绍" class="headerlink" title="概念介绍"></a>概念介绍</h1><h2 id="cri（Container-runtime-interface）"><a href="#cri（Container-runtime-interface）" class="headerlink" title="cri（Container runtime interface）"></a>cri（Container runtime interface）</h2><blockquote>
+<p>​       cri is a containerd plugin implementation of Kubernetes container runtime interface（CRI）.</p>
+</blockquote>
+<p>​       cri是Kubernetes的容器运行时接口的容器插件实现。</p>
+<p><img src="cri.png" alt="cri"></p>
+<h2 id="containerd"><a href="#containerd" class="headerlink" title="containerd"></a>containerd</h2><blockquote>
+<p>​        containerd is an industry-standard（行业标准） container runtime with an emphasis（重点） on simplicity（简单性）,robustness（健壮性） and portability（可移植性）.</p>
+</blockquote>
+<p>​          containerd完全支持运行容器的CRI规范。</p>
+<p>​          cri是containerd 1.1以上的版本的原生插件。它内置于containerd并默认启用。</p>
+<p><img src="containerd.png" alt="containerd"></p>
+<h2 id="oci（Open-Container-Initiative）"><a href="#oci（Open-Container-Initiative）" class="headerlink" title="oci（Open Container Initiative）"></a>oci（Open Container Initiative）</h2><p>​          <a target="_blank" rel="noopener" href="https://www.opencontainers.org/about/oci-scope-table">项目地址</a></p>
+<p>​          oci是由多家公司成立的项目，并由linux基金会进行管理，致力于container runtime 的标准的制定和runc的开发等工作。</p>
+<h2 id="cri-o"><a href="#cri-o" class="headerlink" title="cri-o"></a>cri-o</h2><p>​          OCI-based implementation of Kubernetes Container Runtime Interface.</p>
+<p>​          Kubernetes 为了兼容cri和oci孵化了项目cri-o。为了架设在cri和oci之间的桥梁。因此cri-o即兼容cri插件实现又兼容oci的容器运行时标准。</p>
+<h2 id="runc"><a href="#runc" class="headerlink" title="runc"></a>runc</h2><p>​          runc is a CLI tool for spawning and running containers according to the oci specification.</p>
+<p>​          runc，是对oci标准的一个参考实现，是一个可以用于创建和运行容器的CLI（Command Line Interface）工具。</p>
+<p><img src="kubelet.png" alt="kubelet"></p>
+<p>​    <a target="_blank" rel="noopener" href="https://cuisongliu.github.io/2019/03/kubernetes/containerd/">参考资料</a></p>
+<h3 id="kata"><a href="#kata" class="headerlink" title="kata"></a>kata</h3><p>​          kata containers是由OpenStack基金会管理，但独立于OpenStack项目之外的容器项目。它是一个可 以使用容器镜像以超轻量级虚机的形式创建容器的运行时工具。 kata containers整合了Intel的 Clear Containers 和 Hyper.sh 的 runV，能够支持不同平台的硬件 （x86-64，arm等），并符合OCI(Open Container Initiative)规范，同时还可以**兼容k8s的 CRI（Container Runtime Interface）接口规范。</p>
+<h4 id="kata和传统容器对比"><a href="#kata和传统容器对比" class="headerlink" title="kata和传统容器对比"></a>kata和传统容器对比</h4><p><img src="kata-vs-container.jpg" alt="kata vs container"></p>
+<h4 id="kata-and-docker"><a href="#kata-and-docker" class="headerlink" title="kata and docker"></a>kata and docker</h4><p><img src="kata-with-docker.png" alt="kata with docker"></p>
+<h4 id="kata-in-kubernetes"><a href="#kata-in-kubernetes" class="headerlink" title="kata in kubernetes"></a>kata in kubernetes</h4><p><img src="kata-in-kubernetes.jpg" alt="kata in kubernetes"></p>
+<h1 id="环境说明"><a href="#环境说明" class="headerlink" title="环境说明"></a>环境说明</h1><p>​    本例使用三台CentOS虚拟机进行部署，CentOS版本：CentOS Linux release 7.3.1611 (Core)，内核版本：3.10.0-514.el7.x86_64。</p>
+<table>
+<thead>
+<tr>
+<th align="center">主机名</th>
+<th align="center">IP地址</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">K8S-194</td>
+<td align="center">10.6.6.194</td>
+</tr>
+<tr>
+<td align="center">K8S-195</td>
+<td align="center">10.6.6.195</td>
+</tr>
+<tr>
+<td align="center">K8S-196</td>
+<td align="center">10.6.6.196</td>
+</tr>
+</tbody></table>
+<h1 id="基础部署"><a href="#基础部署" class="headerlink" title="基础部署"></a>基础部署</h1><h2 id="SSH免密登陆"><a href="#SSH免密登陆" class="headerlink" title="SSH免密登陆"></a>SSH免密登陆</h2><p>​    这里简化一下免密登陆的设置步骤，统一使用相同的公钥、私钥。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ssh-keygen  &#x2F;&#x2F;生成公私钥对</span><br><span class="line">cat id_rsa.pub &gt;&gt; authorized_keys   &#x2F;&#x2F;将公钥写入authorized_keys</span><br></pre></td></tr></table></figure>
+
+<p>​    然后将~/.ssh目录下id_rsa  id_rsa.pub分发给另外两台主机</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scp id_rsa id_rsa.pub authorized_keys root@10.6.6.195:~&#x2F;.ssh</span><br><span class="line">scp id_rsa id_rsa.pub authorized_keys root@10.6.6.196:~&#x2F;.ssh</span><br></pre></td></tr></table></figure>
+
+<p>​    将hostname追加到三台机器的/etc/hosts中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">10.6.6.194 K8S-194</span><br><span class="line">10.6.6.195 K8S-195</span><br><span class="line">10.6.6.196 K8S-196</span><br></pre></td></tr></table></figure>
+
+<p>​    至此，可实现三台机器互相的免密登陆。</p>
+<h2 id="NTP对时"><a href="#NTP对时" class="headerlink" title="NTP对时"></a>NTP对时</h2><p>​    CentOS系统中，已经带有ntpd的服务，只需要修改配置文件。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F;以10.6.6.194的时间为基准同步，在10.6.6.194上配置ntpd的配置文件</span><br><span class="line">vim &#x2F;etc&#x2F;ntp.conf</span><br><span class="line">server 127.127.1.0 iburst    &#x2F;&#x2F;在restrict ::1下去掉其它server增加这行</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F;10.6.6.195、10.6.6.196的配置为</span><br><span class="line">vim &#x2F;etc&#x2F;ntp.conf</span><br><span class="line">server 10.6.6.194 iburst</span><br><span class="line">restrict 10.6.6.194 nomodify notrap noquery</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F;所有节点上执行</span><br><span class="line">systemctl enable ntpd</span><br><span class="line">systemctl start ntpd</span><br><span class="line"></span><br><span class="line">ntpdate -u 10.6.6.194   &#x2F;&#x2F;进行手动同步</span><br></pre></td></tr></table></figure>
+
+<h2 id="系统设置"><a href="#系统设置" class="headerlink" title="系统设置"></a>系统设置</h2><h3 id="关闭selinux"><a href="#关闭selinux" class="headerlink" title="关闭selinux"></a>关闭selinux</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">vim &#x2F;etc&#x2F;selinux&#x2F;config</span><br><span class="line">SELINUX&#x3D;disabled</span><br><span class="line">reboot</span><br></pre></td></tr></table></figure>
+
+<h3 id="关闭防火墙"><a href="#关闭防火墙" class="headerlink" title="关闭防火墙"></a>关闭防火墙</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">systemctl stop firewalld.service</span><br><span class="line">systemctl disable firewalld.service</span><br></pre></td></tr></table></figure>
+
+<h3 id="关闭swap"><a href="#关闭swap" class="headerlink" title="关闭swap"></a>关闭swap</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">swappoff -a</span><br><span class="line">vim &#x2F;etc&#x2F;fstab</span><br><span class="line">注释掉swap分区所在的行</span><br></pre></td></tr></table></figure>
+
+
+
+<h1 id="Sealos部署K8S"><a href="#Sealos部署K8S" class="headerlink" title="Sealos部署K8S"></a>Sealos部署K8S</h1><p>​    <a target="_blank" rel="noopener" href="https://github.com/fanux/sealos">Sealos Github</a></p>
+<h2 id="官方安装步骤"><a href="#官方安装步骤" class="headerlink" title="官方安装步骤"></a>官方安装步骤</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">wget -c https:&#x2F;&#x2F;sealyun.oss-cn-beijing.aliyuncs.com&#x2F;latest&#x2F;sealos &amp;&amp; \</span><br><span class="line">    chmod +x sealos &amp;&amp; mv sealos &#x2F;usr&#x2F;bin</span><br><span class="line">    </span><br><span class="line">wget -c https:&#x2F;&#x2F;sealyun.oss-cn-beijing.aliyuncs.com&#x2F;2fb10b1396f8c6674355fcc14a8cda7c-v1.20.0&#x2F;kube1.20.0.tar.gz</span><br><span class="line"></span><br><span class="line">sealos init --passwd &#39;kubernetes&#39; --master 10.6.6.194  --master 10.6.6.195  --master 10.6.6.196 --pkg-url &#x2F;home&#x2F;sealos&#x2F;kube1.20.0.tar.gz --version v1.20.0</span><br></pre></td></tr></table></figure>
+
+
+
+<blockquote>
+<p>官方要求的注意事项。本次部署并没有严格遵守，实际使用应该严格遵守，而且Kubernetes 1.20.0的版本不建议上生产环境</p>
+</blockquote>
+<ul>
+<li>必须同步所有服务器时间</li>
+<li>所有服务器主机名不能重复</li>
+<li>系统支持：centos7.6以上 ubuntu16.04以上</li>
+<li>内核推荐4.14以上， 系统推荐：centos7.7</li>
+</ul>
+<h2 id="架构图"><a href="#架构图" class="headerlink" title="架构图"></a>架构图</h2><p><img src="arch.png" alt="arch"></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/Sealos/" rel="tag"># Sealos</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/" rel="prev" title="Go语言基础">
+      <i class="fa fa-chevron-left"></i> Go语言基础
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/07/31/Kubernetes-Operator/" rel="next" title="Kubernetes-Operator">
+      Kubernetes-Operator <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%A6%82%E5%BF%B5%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">概念介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#cri%EF%BC%88Container-runtime-interface%EF%BC%89"><span class="nav-number">1.1.</span> <span class="nav-text">cri（Container runtime interface）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#containerd"><span class="nav-number">1.2.</span> <span class="nav-text">containerd</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#oci%EF%BC%88Open-Container-Initiative%EF%BC%89"><span class="nav-number">1.3.</span> <span class="nav-text">oci（Open Container Initiative）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#cri-o"><span class="nav-number">1.4.</span> <span class="nav-text">cri-o</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#runc"><span class="nav-number">1.5.</span> <span class="nav-text">runc</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#kata"><span class="nav-number">1.5.1.</span> <span class="nav-text">kata</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#kata%E5%92%8C%E4%BC%A0%E7%BB%9F%E5%AE%B9%E5%99%A8%E5%AF%B9%E6%AF%94"><span class="nav-number">1.5.1.1.</span> <span class="nav-text">kata和传统容器对比</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#kata-and-docker"><span class="nav-number">1.5.1.2.</span> <span class="nav-text">kata and docker</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#kata-in-kubernetes"><span class="nav-number">1.5.1.3.</span> <span class="nav-text">kata in kubernetes</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%8E%AF%E5%A2%83%E8%AF%B4%E6%98%8E"><span class="nav-number">2.</span> <span class="nav-text">环境说明</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E9%83%A8%E7%BD%B2"><span class="nav-number">3.</span> <span class="nav-text">基础部署</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#SSH%E5%85%8D%E5%AF%86%E7%99%BB%E9%99%86"><span class="nav-number">3.1.</span> <span class="nav-text">SSH免密登陆</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#NTP%E5%AF%B9%E6%97%B6"><span class="nav-number">3.2.</span> <span class="nav-text">NTP对时</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B3%BB%E7%BB%9F%E8%AE%BE%E7%BD%AE"><span class="nav-number">3.3.</span> <span class="nav-text">系统设置</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B3%E9%97%ADselinux"><span class="nav-number">3.3.1.</span> <span class="nav-text">关闭selinux</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B3%E9%97%AD%E9%98%B2%E7%81%AB%E5%A2%99"><span class="nav-number">3.3.2.</span> <span class="nav-text">关闭防火墙</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B3%E9%97%ADswap"><span class="nav-number">3.3.3.</span> <span class="nav-text">关闭swap</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Sealos%E9%83%A8%E7%BD%B2K8S"><span class="nav-number">4.</span> <span class="nav-text">Sealos部署K8S</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%98%E6%96%B9%E5%AE%89%E8%A3%85%E6%AD%A5%E9%AA%A4"><span class="nav-number">4.1.</span> <span class="nav-text">官方安装步骤</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E5%9B%BE"><span class="nav-number">4.2.</span> <span class="nav-text">架构图</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="需求背景    在K8s集群中，传统的Ingress Nginx充当集群南北向流量网关+Service充当集群的东西向代理的方案已经无法满足业务用户对于灰度发布、流量治理的要求，平台急需升级。 技术调研    以Envoy为基础的Istio网格方案进入视野，在很大程度上解耦了业务应用与网络通信。分离了业务开发和基础架构的关注点。同时提供了完善的灰度发布、服务治理相关的配置。     目前最新的am">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ServiceMesh-Istio网关模式">
+<meta property="og:url" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="需求背景    在K8s集群中，传统的Ingress Nginx充当集群南北向流量网关+Service充当集群的东西向代理的方案已经无法满足业务用户对于灰度发布、流量治理的要求，平台急需升级。 技术调研    以Envoy为基础的Istio网格方案进入视野，在很大程度上解耦了业务应用与网络通信。分离了业务开发和基础架构的关注点。同时提供了完善的灰度发布、服务治理相关的配置。     目前最新的am">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/istio-gateway-mode.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/sidecar-tcp-echo.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/sidecar-tcp-echo-result.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/sidecar-tcp-echo-listeners-clusters.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/gateway-listeners-clusters.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/gateway-tcp-echo-result.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/authz-eval.png">
+<meta property="article:published_time" content="2023-01-27T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-01-27T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Gateway">
+<meta property="article:tag" content="Istio">
+<meta property="article:tag" content="Mesh">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/istio-gateway-mode.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>ServiceMesh-Istio网关模式 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ServiceMesh-Istio网关模式
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-28 00:00:00" itemprop="dateCreated datePublished" datetime="2023-01-28T00:00:00+08:00">2023-01-28</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ServiceMesh/" itemprop="url" rel="index"><span itemprop="name">ServiceMesh</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="需求背景"><a href="#需求背景" class="headerlink" title="需求背景"></a>需求背景</h1><p>    在K8s集群中，传统的Ingress Nginx充当集群南北向流量网关+Service充当集群的东西向代理的方案已经无法满足业务用户对于灰度发布、流量治理的要求，平台急需升级。</p>
+<h1 id="技术调研"><a href="#技术调研" class="headerlink" title="技术调研"></a>技术调研</h1><p>    以Envoy为基础的Istio网格方案进入视野，在很大程度上解耦了业务应用与网络通信。分离了业务开发和基础架构的关注点。同时提供了完善的灰度发布、服务治理相关的配置。</p>
+<p>    目前最新的ambient模式存在一些问题，尚无法应用到生产环境中。</p>
+<p>    <a target="_blank" rel="noopener" href="https://github.com/istio/istio/tree/experimental-ambient#limitations">GitHub - istio/istio at experimental-ambient</a></p>
+<p>    经典的sidecar模式也存在一些需考虑的问题：</p>
+<p>（1）sidecar和应用生命周期强绑定</p>
+<p>        sidecar的注入，需重启用户应用；sidecar和应用在同一个Pod中，应用和sidecar在启停上，需要遵循一定的顺序来保证服务通信；sidecar的升级需要重启应用（社区有一些热升级的方案，但是比较复杂），没有完全实现基础架构团队和业务团队的解耦。</p>
+<p>（2）sidecar资源配额</p>
+<p>        每一个应用的实例都需要绑定一个sidecar，而且一般需要按照应用实例的峰值进行资源配额的设置，造成集群中资源的浪费。</p>
+<p>（3）通信延迟</p>
+<p>        服务之间的通信，流量在客户端和服务端进出均需频繁地在用户态和内核态进行数据拷贝，通信延迟增加（可借助ebpf进行优化，但同时增加了复杂度）。</p>
+<p>（4）规则下发</p>
+<p>        xDS协议需要下发大量数据到sidecar代理上，虽然目前已经优化可以做到增量下发，减少网络的消耗，但在大规模集群中依然会有大量的规则在大量的sidecar的内存中，目前Istio可以做到Service Discovery和规则下发在namespace级别的控制，需要额外的配置。</p>
+<p>（5）服务隔离</p>
+<p>        在多租户场景下，需要对租户的服务进行隔离控制，拒绝没有授权的访问。</p>
+<h1 id="架构方案"><a href="#架构方案" class="headerlink" title="架构方案"></a>架构方案</h1><p>    鉴于上述问题，结合ambient，决定使用内部网关的模式实现东西向流量的转发。 </p>
+<p><img src="istio-gateway-mode.png"></p>
+<p>      方案主要使用Istio，将东西向流量转发到内部网关上，以取代sidecar在东西向通信所起的作用。采取如下方式：</p>
+<p>（1）让用户注册新的Service，使用新的Service，避免对现存Nginx Ingress的影响。</p>
+<p>（2）使用控制器模式，生成东西向调用的Service（提供给用户调用）+Endpoint，并动态维护后端地址，转发流量到local-gateway。</p>
+<p>（3）VS+DR所定义的流量功能，可以有选择的应用在东西向或南北向流量之上。</p>
+<p>    方案的优点：</p>
+<ul>
+<li><p>对用户应用的侵入：需要重启用户应用；后续迁移ambient只需要修改Service的后端。</p>
+</li>
+<li><p>sidecar的资源问题：通过统一的内部网关和HPA解决资源不好设定和浪费的问题。</p>
+</li>
+<li><p>网络通信：Service的四层代理+Istio Gateway，相较sidecar模式，延迟低一些。</p>
+</li>
+<li><p>可以复用Istio的VS+DR，在东西向和南北向的网关上。</p>
+</li>
+</ul>
+<p>    方案依然存在的问题:</p>
+<ul>
+<li><p>多租户的隔离问题。</p>
+</li>
+<li><p>Kiali的网络拓扑显示不完整。 </p>
+</li>
+</ul>
+<h1 id="方案踩坑"><a href="#方案踩坑" class="headerlink" title="方案踩坑"></a>方案踩坑</h1><h2 id="HTTP-Traffic"><a href="#HTTP-Traffic" class="headerlink" title="HTTP Traffic"></a>HTTP Traffic</h2><p>    使用VS+DR通过网关或者是Sidecar控制HTTP流量的转发（未开启mTLS）。</p>
+<h3 id="Sidecar"><a href="#Sidecar" class="headerlink" title="Sidecar"></a>Sidecar</h3><p>    参照Istio的<a target="_blank" rel="noopener" href="https://github.com/istio/istio/tree/master/samples/bookinfo">istio/samples/bookinfo</a>示例，有详细的yaml说明。</p>
+<h3 id="LocalGateway"><a href="#LocalGateway" class="headerlink" title="LocalGateway"></a>LocalGateway</h3><p>    将bookinfo使用网关模式进行改造。</p>
+<p>（1）修改服务的部署，定义服务发现和服务通信的两个Service。客户端访问端口一致。</p>
+<p>（2）修改客户端访问方式：由Service名改成Service名.分区名。网关必须使用FQDN。</p>
+<p>    以details为例</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">reviews-discovery</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/name:</span> <span class="string">reviews</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">9080</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/name:</span> <span class="string">reviews</span>    </span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">reviews</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">9080</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">8080</span>               <span class="comment"># 内部网关端口</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Endpoints</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">reviews</span></span><br><span class="line"><span class="attr">subsets:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">addresses:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">ip:</span> <span class="number">172.29</span><span class="number">.6</span><span class="number">.22</span>                <span class="comment"># 内部网关的Pod IP，测试写死</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">ip:</span> <span class="number">172.29</span><span class="number">.5</span><span class="number">.221</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">8080</span>                     <span class="comment"># 内部网关端口</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span>    </span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ServiceAccount</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">bookinfo-reviews</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">account:</span> <span class="string">reviews</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">apps/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">reviews-v1</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/name:</span> <span class="string">reviews</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/version:</span> <span class="string">v1</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">reviews-v1</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">replicas:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">reviews-v1</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">metadata:</span></span><br><span class="line">      <span class="attr">labels:</span></span><br><span class="line">        <span class="attr">app.kubernetes.io/name:</span> <span class="string">reviews</span></span><br><span class="line">        <span class="attr">app.kubernetes.io/version:</span> <span class="string">v1</span></span><br><span class="line">        <span class="attr">app:</span> <span class="string">reviews-v1</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">serviceAccountName:</span> <span class="string">bookinfo-reviews</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">reviews</span></span><br><span class="line">        <span class="attr">image:</span> <span class="string">docker.io/istio/examples-bookinfo-reviews-v1:1.16.2</span></span><br><span class="line">        <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line">        <span class="attr">env:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">LOG_DIR</span></span><br><span class="line">          <span class="attr">value:</span> <span class="string">&quot;/tmp/logs&quot;</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">SERVICES_DOMAIN</span>    <span class="comment"># 使用servie名称.分区名称作为域名访问</span></span><br><span class="line">          <span class="attr">value:</span> <span class="string">shadow</span></span><br><span class="line">        <span class="attr">ports:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">containerPort:</span> <span class="number">9080</span></span><br><span class="line">        <span class="attr">volumeMounts:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">tmp</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/tmp</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">wlp-output</span></span><br><span class="line">          <span class="attr">mountPath:</span> <span class="string">/opt/ibm/wlp/output</span></span><br><span class="line">        <span class="attr">securityContext:</span></span><br><span class="line">          <span class="attr">runAsUser:</span> <span class="number">1000</span></span><br><span class="line">      <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">wlp-output</span></span><br><span class="line">        <span class="attr">emptyDir:</span> &#123;&#125;</span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">tmp</span></span><br><span class="line">        <span class="attr">emptyDir:</span> &#123;&#125;</span><br></pre></td></tr></table></figure>
+
+<p>    （3）通过内部网关进行流量控制</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Gateway</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">localgateway</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">istio:</span> <span class="string">cluster-local-gateway</span></span><br><span class="line">  <span class="attr">servers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span></span><br><span class="line">      <span class="attr">number:</span> <span class="number">8080</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">http</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">HTTP</span></span><br><span class="line">    <span class="attr">hosts:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">&quot;*&quot;</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">VirtualService</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">reviews</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">gateways:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">localgateway</span></span><br><span class="line">  <span class="attr">hosts:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">&quot;reviews.shadow&quot;</span></span><br><span class="line">  <span class="attr">http:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">route:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">reviews-discovery</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v1</span></span><br><span class="line">        <span class="attr">port:</span></span><br><span class="line">          <span class="attr">number:</span> <span class="number">9080</span></span><br><span class="line">      <span class="attr">weight:</span> <span class="number">30</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">reviews-discovery</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v2</span></span><br><span class="line">        <span class="attr">port:</span></span><br><span class="line">          <span class="attr">number:</span> <span class="number">9080</span></span><br><span class="line">      <span class="attr">weight:</span> <span class="number">30</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">reviews-discovery</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v3</span></span><br><span class="line">        <span class="attr">port:</span></span><br><span class="line">          <span class="attr">number:</span> <span class="number">9080</span></span><br><span class="line">      <span class="attr">weight:</span> <span class="number">40</span>      </span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">DestinationRule</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">reviews</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">host:</span> <span class="string">reviews-discovery</span></span><br><span class="line">  <span class="attr">subsets:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">v1</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">app.kubernetes.io/version:</span> <span class="string">v1</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">v2</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">app.kubernetes.io/version:</span> <span class="string">v2</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">v3</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">app.kubernetes.io/version:</span> <span class="string">v3</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="TCP-Traffic"><a href="#TCP-Traffic" class="headerlink" title="TCP Traffic"></a>TCP Traffic</h2><p>    使用VS+DR通过网关或者是Sidecar控制TCP流量的转发。</p>
+<h3 id="Sidecar-1"><a href="#Sidecar-1" class="headerlink" title="Sidecar"></a>Sidecar</h3><p>    部署了sleep和tcp-echo的应用，测试VS的转发机制。</p>
+<p><img src="sidecar-tcp-echo.png"></p>
+<p>    定义如下转发规则，让流量都转发给v2：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line">apiVersion: v1</span><br><span class="line">kind: Service</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    app: tcp-echo</span><br><span class="line">    service: tcp-echo</span><br><span class="line">  name: tcp-echo</span><br><span class="line">spec:</span><br><span class="line">  ports:</span><br><span class="line">  - name: tcp</span><br><span class="line">    port: 8888</span><br><span class="line">    protocol: TCP</span><br><span class="line">    targetPort: 9000</span><br><span class="line">  - name: tcp-other</span><br><span class="line">    port: 9001</span><br><span class="line">    protocol: TCP</span><br><span class="line">    targetPort: 9001</span><br><span class="line">  selector:</span><br><span class="line">    app: tcp-echo</span><br><span class="line">  sessionAffinity: None</span><br><span class="line">  type: ClusterIP</span><br><span class="line">---</span><br><span class="line">apiVersion: networking.istio.io&#x2F;v1alpha3</span><br><span class="line">kind: DestinationRule</span><br><span class="line">metadata:</span><br><span class="line">  name: tcp-echo-destination</span><br><span class="line">spec:</span><br><span class="line">  host: tcp-echo</span><br><span class="line">  subsets:</span><br><span class="line">  - name: v1</span><br><span class="line">    labels:</span><br><span class="line">      version: v1</span><br><span class="line">  - name: v2</span><br><span class="line">    labels:</span><br><span class="line">      version: v2</span><br><span class="line">---</span><br><span class="line">apiVersion: networking.istio.io&#x2F;v1alpha3</span><br><span class="line">kind: VirtualService</span><br><span class="line">metadata:</span><br><span class="line">  name: tcp-echo</span><br><span class="line">spec:</span><br><span class="line">  hosts:</span><br><span class="line">  - tcp-echo</span><br><span class="line">  gateways:</span><br><span class="line">  - mesh</span><br><span class="line">  tcp:</span><br><span class="line">  - match:</span><br><span class="line">    - port: 8888</span><br><span class="line">    route:</span><br><span class="line">    - destination:</span><br><span class="line">        host: tcp-echo</span><br><span class="line">        subset: v2</span><br></pre></td></tr></table></figure>
+
+<p>     可以看到<strong>VS中所使用的port是客户端访问的Service的port</strong>，Istio中的Cluster、Listeners均使用这个字段进行监听，转发目标cluster、ServiceName。</p>
+<p><img src="sidecar-tcp-echo-result.png"></p>
+<p>    查看客户端sidecar的listeners、clusters。</p>
+<p><img src="sidecar-tcp-echo-listeners-clusters.png"></p>
+<blockquote>
+<p>可以看到sidecar是根据所访问Service的clusterIP和port进行转发的。我们知道在Pod中会将所有对外的流量通过iptables的redirect –to-ports转发给envoy的监听端口，那么Envoy是如何获取到客户端访问的IP和端口呢？？</p>
+</blockquote>
+<h3 id="LocalGateway-1"><a href="#LocalGateway-1" class="headerlink" title="LocalGateway"></a>LocalGateway</h3><p>    在网关模型中，我们通过重写Service和EndPoint将客户端对Service的访问转发给集群内部LocalGateway（这个实际上是Istio的ingressGateway的网关实例），同样使用sleep和tcp-echo的应用进行测试。</p>
+<p>    网关模式中Service+Endpoint的改写：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">tcp-echo-discovery</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/name:</span> <span class="string">tcp-echo</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">tcp</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">8800</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">9000</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">tcp-other</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">9001</span></span><br><span class="line">  <span class="comment"># Port 9002 is omitted intentionally for testing the pass through filter chain.</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app.kubernetes.io/name:</span> <span class="string">tcp-echo</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">tcp-echo</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">8800</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">tcp</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">8800</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Endpoints</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">tcp-echo</span></span><br><span class="line"><span class="attr">subsets:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">addresses:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">ip:</span> <span class="number">172.29</span><span class="number">.6</span><span class="number">.22</span>                <span class="comment"># 查询了网关实例的IP</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">ip:</span> <span class="number">172.29</span><span class="number">.5</span><span class="number">.221</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">tcp</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">8800</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br></pre></td></tr></table></figure>
+
+<p>    定义流量分发的比例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Gateway</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">tcp-localgateway</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">istio:</span> <span class="string">cluster-local-gateway</span></span><br><span class="line">  <span class="attr">servers:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span></span><br><span class="line">      <span class="attr">number:</span> <span class="number">8800</span>     <span class="comment">## 监听端口</span></span><br><span class="line">      <span class="attr">name:</span> <span class="string">tcp</span></span><br><span class="line">      <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">hosts:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">&quot;*&quot;</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">DestinationRule</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">tcp-echo-destination</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">host:</span> <span class="string">tcp-echo-discovery</span></span><br><span class="line">  <span class="attr">subsets:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">v1</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">app.kubernetes.io/version:</span> <span class="string">v1</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">v2</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">app.kubernetes.io/version:</span> <span class="string">v2</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">VirtualService</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">tcp-echo</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">hosts:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">tcp-echo.shadow</span></span><br><span class="line">  <span class="attr">gateways:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">tcp-localgateway</span></span><br><span class="line">  <span class="attr">tcp:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">8800</span>    <span class="comment"># hosts/端口必须与gateway listeners端口一致，网关实例才会监听。H</span></span><br><span class="line">    <span class="attr">route:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">tcp-echo-discovery</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v2</span></span><br><span class="line">      <span class="attr">weight:</span> <span class="number">90</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">destination:</span></span><br><span class="line">        <span class="attr">host:</span> <span class="string">tcp-echo-discovery</span></span><br><span class="line">        <span class="attr">subset:</span> <span class="string">v1</span></span><br><span class="line">      <span class="attr">weight:</span> <span class="number">10</span></span><br></pre></td></tr></table></figure>
+
+<p>    查看网关的listners和cluster信息：</p>
+<p><img src="gateway-listeners-clusters.png"></p>
+<p>    可以看到，流量基本按照比例分配，测试结果：</p>
+<p><img src="gateway-tcp-echo-result.png"></p>
+<blockquote>
+<p>与sidecar不同的是，网关实际会起端口的监听，网关监听的端口必须与vs中match的端口一致（这样才会起监听），这样就导致客户端访问Service的port必须与网关监听的端口一致（否则vs match不上），这就限制了多租户场景下，不同Service使用相同的端口。从listeners上也可以看到，实际并未像sidecar那样按照Service的ClusterIP进行区分。</p>
+</blockquote>
+<h2 id="Security-Policy"><a href="#Security-Policy" class="headerlink" title="Security Policy"></a>Security Policy</h2><p>    Istio提供了认证和鉴权的机制。</p>
+<h3 id="Authentication"><a href="#Authentication" class="headerlink" title="Authentication"></a>Authentication</h3><h4 id="PeerAuthentication"><a href="#PeerAuthentication" class="headerlink" title="PeerAuthentication"></a>PeerAuthentication</h4><p>    是否开启mTLS，支持一下三个模式：</p>
+<ul>
+<li><p>PERMISSIVE（默认），过度阶段同时支持mTLS和Plain Text。</p>
+</li>
+<li><p>STRICT</p>
+</li>
+<li><p>DISABLE</p>
+</li>
+</ul>
+<h4 id="RequestAuthentication"><a href="#RequestAuthentication" class="headerlink" title="RequestAuthentication"></a>RequestAuthentication</h4><p>    验证JWT，包含以下内容：</p>
+<ul>
+<li><p>JWT Token在请求中的位置</p>
+</li>
+<li><p>颁发者或者请求</p>
+</li>
+<li><p>公共JSON Web密钥集(JWKS)</p>
+</li>
+</ul>
+<h3 id="Authorization"><a href="#Authorization" class="headerlink" title="Authorization"></a>Authorization</h3><p>    基于以上的认证信息（source.principal/request.auth.principal），进行鉴权。其中一下几个字段，如要使用必须启用mtls：</p>
+<ul>
+<li><p>the <strong>principals</strong> and <strong>notPrincipals</strong> field under the source section</p>
+</li>
+<li><p>the <strong>namespaces</strong> and <strong>notNamespaces</strong> field under the source section</p>
+</li>
+<li><p>the <strong>source.principal</strong> custom condition</p>
+</li>
+<li><p>the <strong>source.namespace</strong> custom condition</p>
+</li>
+</ul>
+<h4 id="AuthorizationPolicy"><a href="#AuthorizationPolicy" class="headerlink" title="AuthorizationPolicy"></a>AuthorizationPolicy</h4><p>    策略生效的优先级。</p>
+<p><img src="authz-eval.png"></p>
+<h2 id="VM-Architecture"><a href="#VM-Architecture" class="headerlink" title="VM Architecture"></a>VM Architecture</h2><p>    Istio支持虚拟机接入，虚拟机通过网关与Istiod进行通信（XDS下发和证书签发等），如果虚拟机不能与集群中的Pod直接通信，也可以借助网关进行通信。</p>
+<h3 id="Service-Entry"><a href="#Service-Entry" class="headerlink" title="Service Entry"></a>Service Entry</h3><p>    将网格外的服务注册进网格。复用网格的流量管理（VS+DR）能力。</p>
+<h3 id="Workload-Group"><a href="#Workload-Group" class="headerlink" title="Workload Group"></a>Workload Group</h3><p>    配置一组虚拟机的公共属性，类似于K8s集群中的Deployment。如果在虚拟机中部署了istio-proxy，可以实现自动创建Workload Entry。</p>
+<h3 id="Workload-Entry"><a href="#Workload-Entry" class="headerlink" title="Workload Entry"></a>Workload Entry</h3><p>    某一个虚拟机的实例，类似于K8s集群中的Pod。自动创建时，从Workload Group集成metadata labels、健康检查、service account等。</p>
+<blockquote>
+<p> Workload Group + Workload Entry这两个资源对象代替虚拟机，向Istio提供服务网格需要的信息。</p>
+</blockquote>
+<h2 id="Hot-Plugin"><a href="#Hot-Plugin" class="headerlink" title="Hot Plugin"></a>Hot Plugin</h2><p>    支持自定义插件，并在路由级别实现热可拨插。</p>
+<h3 id="Implement"><a href="#Implement" class="headerlink" title="Implement"></a>Implement</h3><p>    Istio使用Envoy作为数据面，envoy在插件实现上主要有Lua和wasm两种方式。其中lua支持路由级别的配置，而wasm目前都是全局的实现，可以通过Composite和Match的一些组合进行路由的过滤，但是逻辑比较复杂。</p>
+<p>    envoy根据域名和路径执行wasm：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">static_resources:</span></span><br><span class="line">  <span class="attr">listeners:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">main</span></span><br><span class="line">    <span class="attr">address:</span></span><br><span class="line">      <span class="attr">socket_address:</span></span><br><span class="line">        <span class="attr">address:</span> <span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span></span><br><span class="line">        <span class="attr">port_value:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">filter_chains:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">filters:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">envoy.filters.network.http_connection_manager</span></span><br><span class="line">        <span class="attr">typed_config:</span></span><br><span class="line">          <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager</span></span><br><span class="line">          <span class="attr">codec_type:</span> <span class="string">AUTO</span></span><br><span class="line">          <span class="attr">stat_prefix:</span> <span class="string">ingress_http</span></span><br><span class="line">          <span class="attr">route_config:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">local_route_get</span></span><br><span class="line">            <span class="attr">virtual_hosts:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">local_service</span></span><br><span class="line">              <span class="attr">domains:</span> [<span class="string">&quot;*&quot;</span>]</span><br><span class="line">              <span class="attr">routes:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">                  <span class="attr">prefix:</span> <span class="string">&quot;/get&quot;</span></span><br><span class="line">                <span class="attr">route:</span></span><br><span class="line">                  <span class="attr">cluster:</span> <span class="string">httpbin</span></span><br><span class="line">              <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">                  <span class="attr">prefix:</span> <span class="string">&quot;/headers&quot;</span></span><br><span class="line">                <span class="attr">route:</span></span><br><span class="line">                  <span class="attr">cluster:</span> <span class="string">httpbin</span></span><br><span class="line">              <span class="bullet">-</span> <span class="attr">match:</span></span><br><span class="line">                  <span class="attr">prefix:</span> <span class="string">&quot;/&quot;</span></span><br><span class="line">                <span class="attr">route:</span></span><br><span class="line">                  <span class="attr">cluster:</span> <span class="string">httpbin</span></span><br><span class="line">          <span class="attr">http_filters:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">composite</span></span><br><span class="line">            <span class="attr">typed_config:</span></span><br><span class="line">              <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher</span></span><br><span class="line">              <span class="attr">extension_config:</span></span><br><span class="line">                <span class="attr">name:</span> <span class="string">composite</span></span><br><span class="line">                <span class="attr">typed_config:</span></span><br><span class="line">                  <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.composite.v3.Composite</span></span><br><span class="line">              <span class="attr">xds_matcher:</span></span><br><span class="line">                <span class="attr">matcher_list:</span></span><br><span class="line">                  <span class="attr">matchers:</span></span><br><span class="line">                  <span class="bullet">-</span> <span class="attr">predicate:</span></span><br><span class="line">                      <span class="attr">and_matcher:</span></span><br><span class="line">                        <span class="attr">predicate:</span></span><br><span class="line">                        <span class="bullet">-</span> <span class="attr">single_predicate:</span></span><br><span class="line">                            <span class="attr">input:</span></span><br><span class="line">                              <span class="attr">name:</span> <span class="string">request-domains</span></span><br><span class="line">                              <span class="attr">typed_config:</span></span><br><span class="line">                                <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput</span></span><br><span class="line">                                <span class="attr">header_name:</span> <span class="string">:authority</span></span><br><span class="line">                            <span class="attr">value_match:</span></span><br><span class="line">                              <span class="attr">exact:</span> <span class="string">&quot;shadow.xxx.xxx&quot;</span></span><br><span class="line">                        <span class="bullet">-</span> <span class="attr">single_predicate:</span></span><br><span class="line">                            <span class="attr">input:</span></span><br><span class="line">                              <span class="attr">name:</span> <span class="string">request-path</span></span><br><span class="line">                              <span class="attr">typed_config:</span></span><br><span class="line">                                <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput</span></span><br><span class="line">                                <span class="attr">header_name:</span> <span class="string">:path</span></span><br><span class="line">                            <span class="attr">value_match:</span></span><br><span class="line">                              <span class="attr">exact:</span> <span class="string">&quot;/headers&quot;</span></span><br><span class="line">                    <span class="attr">on_match:</span></span><br><span class="line">                      <span class="attr">action:</span></span><br><span class="line">                        <span class="attr">name:</span> <span class="string">action</span></span><br><span class="line">                        <span class="attr">typed_config:</span></span><br><span class="line">                          <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.composite.v3.ExecuteFilterAction</span></span><br><span class="line">                          <span class="attr">typed_config:</span></span><br><span class="line">                            <span class="attr">name:</span> <span class="string">wasm</span></span><br><span class="line">                            <span class="attr">typed_config:</span></span><br><span class="line">                              <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm</span></span><br><span class="line">                              <span class="attr">config:</span></span><br><span class="line">                                <span class="attr">name:</span> <span class="string">&quot;my_plugin&quot;</span></span><br><span class="line">                                <span class="attr">root_id:</span> <span class="string">&quot;my_root_id&quot;</span></span><br><span class="line">                                <span class="attr">vm_config:</span></span><br><span class="line">                                  <span class="attr">runtime:</span> <span class="string">&quot;envoy.wasm.runtime.v8&quot;</span></span><br><span class="line">                                  <span class="attr">vm_id:</span> <span class="string">&quot;my_vm_id&quot;</span></span><br><span class="line">                                  <span class="attr">code:</span></span><br><span class="line">                                    <span class="attr">local:</span></span><br><span class="line">                                      <span class="attr">filename:</span> <span class="string">&quot;/etc/wasm_filter.wasm&quot;</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">envoy.filters.http.router</span></span><br><span class="line">  <span class="attr">clusters:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">httpbin</span></span><br><span class="line">    <span class="attr">connect_timeout:</span> <span class="number">0.</span><span class="string">25s</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">STRICT_DNS</span></span><br><span class="line">    <span class="attr">lb_policy:</span> <span class="string">round_robin</span></span><br><span class="line">    <span class="attr">load_assignment:</span></span><br><span class="line">      <span class="attr">cluster_name:</span> <span class="string">httpbin</span></span><br><span class="line">      <span class="attr">endpoints:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">lb_endpoints:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">endpoint:</span></span><br><span class="line">            <span class="attr">address:</span></span><br><span class="line">              <span class="attr">socket_address:</span></span><br><span class="line">                <span class="attr">address:</span> <span class="string">httpbin</span></span><br><span class="line">                <span class="attr">port_value:</span> <span class="number">80</span></span><br><span class="line"></span><br><span class="line"><span class="attr">admin:</span></span><br><span class="line">  <span class="attr">access_log_path:</span> <span class="string">&quot;/dev/null&quot;</span></span><br><span class="line">  <span class="attr">address:</span></span><br><span class="line">    <span class="attr">socket_address:</span></span><br><span class="line">      <span class="attr">address:</span> <span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span></span><br><span class="line">      <span class="attr">port_value:</span> <span class="number">8001</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="inject"><a href="#inject" class="headerlink" title="inject"></a>inject</h3><p>    Istio支持对Envoy代理进行插件配置，但是暂不支持Composite规则的下发，按路由匹配的规则无法通过istio的crd下发到Envoy上。</p>
+<h4 id="WasmPlug"><a href="#WasmPlug" class="headerlink" title="WasmPlug"></a>WasmPlug</h4><p>    wasm filter的注入方式，支持oci、http、file等方式。</p>
+<h4 id="EnvoyFilter"><a href="#EnvoyFilter" class="headerlink" title="EnvoyFilter"></a>EnvoyFilter</h4><p>    通过Istio的pilot定制Envoy的配置。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">EnvoyFilter</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">lua-filter</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">istio-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">workloadSelector:</span></span><br><span class="line">    <span class="attr">labels:</span></span><br><span class="line">      <span class="attr">istio:</span> <span class="string">ingressgateway</span></span><br><span class="line">  <span class="attr">configPatches:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_ROUTE</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">routeConfiguration:</span></span><br><span class="line">        <span class="attr">vhost:</span></span><br><span class="line">          <span class="attr">name:</span> <span class="string">httpbin.xxx.xx:8080</span></span><br><span class="line">          <span class="attr">route:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">&quot;httpbin-match.get&quot;</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">MERGE</span></span><br><span class="line">      <span class="attr">value:</span></span><br><span class="line">        <span class="attr">typed_per_filter_config:</span></span><br><span class="line">          <span class="attr">envoy.filters.http.lua:</span></span><br><span class="line">            <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.lua.v3.LuaPerRoute</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">shadow.lua</span></span><br><span class="line"></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_FILTER</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">      <span class="attr">listener:</span></span><br><span class="line">        <span class="attr">portNumber:</span> <span class="number">8080</span></span><br><span class="line">        <span class="attr">filterChain:</span></span><br><span class="line">          <span class="attr">filter:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">envoy.filters.network.http_connection_manager</span></span><br><span class="line">            <span class="attr">subFilter:</span></span><br><span class="line">              <span class="attr">name:</span> <span class="string">envoy.filters.http.router</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">INSERT_BEFORE</span></span><br><span class="line">      <span class="attr">value:</span></span><br><span class="line">        <span class="attr">name:</span> <span class="string">envoy.filters.http.lua</span></span><br><span class="line">        <span class="attr">typed_config:</span></span><br><span class="line">          <span class="string">&quot;@type&quot;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua</span></span><br><span class="line">          <span class="attr">inline_code:</span> <span class="string">|</span></span><br><span class="line">            <span class="string">function</span> <span class="string">envoy_on_request(request_handle)</span></span><br><span class="line">              <span class="string">--</span> <span class="string">do</span> <span class="string">something</span></span><br><span class="line">            <span class="string">end</span></span><br><span class="line">          <span class="attr">source_codes:</span></span><br><span class="line">            <span class="attr">shadow.lua:</span></span><br><span class="line">              <span class="attr">inline_string:</span> <span class="string">|</span></span><br><span class="line">                <span class="string">function</span> <span class="string">envoy_on_request(request_handle)</span></span><br><span class="line">                  <span class="string">request_handle:headers():add(&quot;foo&quot;,</span> <span class="string">&quot;shadow&quot;</span><span class="string">)</span></span><br><span class="line">                <span class="string">end</span></span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Gateway/" rel="tag"># Gateway</a>
+              <a href="/tags/Istio/" rel="tag"># Istio</a>
+              <a href="/tags/Mesh/" rel="tag"># Mesh</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/" rel="prev" title="Java容器化部署杂记">
+      <i class="fa fa-chevron-left"></i> Java容器化部署杂记
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/10/30/%E4%BD%BF%E7%94%A8ProtoBuffers%E5%92%8CGolang%E7%BC%96%E5%86%99gRPC%E6%9C%8D%E5%8A%A1/" rel="next" title="使用ProtoBuffers和Golang编写gRPC服务">
+      使用ProtoBuffers和Golang编写gRPC服务 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%9C%80%E6%B1%82%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">需求背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E8%B0%83%E7%A0%94"><span class="nav-number">2.</span> <span class="nav-text">技术调研</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E6%96%B9%E6%A1%88"><span class="nav-number">3.</span> <span class="nav-text">架构方案</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E8%B8%A9%E5%9D%91"><span class="nav-number">4.</span> <span class="nav-text">方案踩坑</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#HTTP-Traffic"><span class="nav-number">4.1.</span> <span class="nav-text">HTTP Traffic</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Sidecar"><span class="nav-number">4.1.1.</span> <span class="nav-text">Sidecar</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#LocalGateway"><span class="nav-number">4.1.2.</span> <span class="nav-text">LocalGateway</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TCP-Traffic"><span class="nav-number">4.2.</span> <span class="nav-text">TCP Traffic</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Sidecar-1"><span class="nav-number">4.2.1.</span> <span class="nav-text">Sidecar</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#LocalGateway-1"><span class="nav-number">4.2.2.</span> <span class="nav-text">LocalGateway</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Security-Policy"><span class="nav-number">4.3.</span> <span class="nav-text">Security Policy</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Authentication"><span class="nav-number">4.3.1.</span> <span class="nav-text">Authentication</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#PeerAuthentication"><span class="nav-number">4.3.1.1.</span> <span class="nav-text">PeerAuthentication</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#RequestAuthentication"><span class="nav-number">4.3.1.2.</span> <span class="nav-text">RequestAuthentication</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Authorization"><span class="nav-number">4.3.2.</span> <span class="nav-text">Authorization</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#AuthorizationPolicy"><span class="nav-number">4.3.2.1.</span> <span class="nav-text">AuthorizationPolicy</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#VM-Architecture"><span class="nav-number">4.4.</span> <span class="nav-text">VM Architecture</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Service-Entry"><span class="nav-number">4.4.1.</span> <span class="nav-text">Service Entry</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Workload-Group"><span class="nav-number">4.4.2.</span> <span class="nav-text">Workload Group</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Workload-Entry"><span class="nav-number">4.4.3.</span> <span class="nav-text">Workload Entry</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Hot-Plugin"><span class="nav-number">4.5.</span> <span class="nav-text">Hot Plugin</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Implement"><span class="nav-number">4.5.1.</span> <span class="nav-text">Implement</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#inject"><span class="nav-number">4.5.2.</span> <span class="nav-text">inject</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#WasmPlug"><span class="nav-number">4.5.2.1.</span> <span class="nav-text">WasmPlug</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#EnvoyFilter"><span class="nav-number">4.5.2.2.</span> <span class="nav-text">EnvoyFilter</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

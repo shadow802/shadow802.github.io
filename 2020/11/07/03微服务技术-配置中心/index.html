@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="​    在微服务架构中，服务往往是多实例，尤其是在K8s的部署模式下，不可能将配置放在应用的本地，因此需要一个统一的配置中心，同时在everything is code的思想下，配置应该有一个版本管理，当需要调整的时候，应用可以自动加载生效（热更新）。 技术要求热更新​    开发&#x2F;运维修改了应用的配置之后，无需重启应用，应用可以及时更新最新的配置并生效。 高可用​    配置中心作为应用配置的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务技术-配置中心">
+<meta property="og:url" content="https://shadow802.gitee.io/2020/11/07/03%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E9%85%8D%E7%BD%AE%E4%B8%AD%E5%BF%83/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="​    在微服务架构中，服务往往是多实例，尤其是在K8s的部署模式下，不可能将配置放在应用的本地，因此需要一个统一的配置中心，同时在everything is code的思想下，配置应该有一个版本管理，当需要调整的时候，应用可以自动加载生效（热更新）。 技术要求热更新​    开发&#x2F;运维修改了应用的配置之后，无需重启应用，应用可以及时更新最新的配置并生效。 高可用​    配置中心作为应用配置的">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2020-11-06T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-11-06T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="配置中心">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2020/11/07/03%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E9%85%8D%E7%BD%AE%E4%B8%AD%E5%BF%83/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务技术-配置中心 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2020/11/07/03%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E9%85%8D%E7%BD%AE%E4%B8%AD%E5%BF%83/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务技术-配置中心
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-11-07 00:00:00" itemprop="dateCreated datePublished" datetime="2020-11-07T00:00:00+08:00">2020-11-07</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" itemprop="url" rel="index"><span itemprop="name">微服务</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​    在微服务架构中，服务往往是多实例，尤其是在K8s的部署模式下，不可能将配置放在应用的本地，因此需要一个统一的配置中心，同时在everything is code的思想下，配置应该有一个版本管理，当需要调整的时候，应用可以自动加载生效（热更新）。</p>
+<h1 id="技术要求"><a href="#技术要求" class="headerlink" title="技术要求"></a>技术要求</h1><h2 id="热更新"><a href="#热更新" class="headerlink" title="热更新"></a>热更新</h2><p>​    开发/运维修改了应用的配置之后，无需重启应用，应用可以及时更新最新的配置并生效。</p>
+<h2 id="高可用"><a href="#高可用" class="headerlink" title="高可用"></a>高可用</h2><p>​    配置中心作为应用配置的来源，不能出现单点故障，否则会引发系统性的灾难。</p>
+<h2 id="版本管理"><a href="#版本管理" class="headerlink" title="版本管理"></a>版本管理</h2><p>​    everything is code，需要追溯配置修改的版本，便于排错和及时回滚错误的配置版本。</p>
+<h2 id="友好性"><a href="#友好性" class="headerlink" title="友好性"></a>友好性</h2><p>​    （1）配置中心应该提供良好的UI界面，便于运维人员直观的查询修改；最好有开发性api便于二次开发集成。</p>
+<p>​    （2）配置中心应该具备易于集成客户端，以便在应用中快速集成。</p>
+<h1 id="技术选型"><a href="#技术选型" class="headerlink" title="技术选型"></a>技术选型</h1><p>​    因为Spring Cloud Config在热更新方面集成比较复杂，予以排除，目前主要考虑的两个配置中心：</p>
+<h2 id="Nacos"><a href="#Nacos" class="headerlink" title="Nacos"></a>Nacos</h2><p>​    Nacos是Spring Cloud Alibaba架构下的组件，一个更易于构建云原生应用的动态服务发现、配置管理和服务管理平台。截止2020-11-07，github star 14.8K。</p>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/alibaba/nacos">Nacos Github</a></p>
+<p>​    <a target="_blank" rel="noopener" href="https://nacos.io/zh-cn/index.html">Nacos 官网</a></p>
+<h2 id="Apollo"><a href="#Apollo" class="headerlink" title="Apollo"></a>Apollo</h2><p>​    Apollo是携程开源的一款配置中心，适用于微服务架构下的不同环境的配置管理。对Spring/Spring Cloud有很好的支持。截止2020-1107，github star 22.8。</p>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/ctripcorp/apollo">Apollo Github</a></p>
+<h2 id="Nacos-vs-Apollo"><a href="#Nacos-vs-Apollo" class="headerlink" title="Nacos vs Apollo"></a>Nacos vs Apollo</h2><p>​    两款注册中心都比较优秀，均满足上述技术要求，从github的星数可见一斑。下面仅从自己的角度，对一些细微的地方做一些说明：</p>
+<p>（1）Nacos作为配置中心的同时，同时提供了服务注册、发现的功能。</p>
+<p>（2）Apollo、Nacos在高可用方面，应用会在自己的本地存储缓存一份配置文件，这样一旦发生配置中心整个不可用，应用也可以使用自己的本地配置文件。</p>
+<p>​          在UI上，apollo可以将配置先保存，不直接发布，apollo的UI感觉更舒服。    </p>
+<p>​    鉴于Nacos的服务注册、发现功能，建议选用Nacos，毕竟可以在开发环境少集成一个组件，节约成本。</p>
+<h1 id="拓展思考"><a href="#拓展思考" class="headerlink" title="拓展思考"></a>拓展思考</h1><p>​    在为微服务架构选型的时候，经常在想K8s提供了哪些功能，这些功能跟微服务组件提供的功能很类似，如果应用最终是要上K8s部署，能不能借用K8s现有的功能，减少微服务组件的引用，如下表格：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Kubernetes</th>
+<th>微服务</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>服务注册、发现</td>
+<td>Service</td>
+<td>Eureka、Nacos等</td>
+</tr>
+<tr>
+<td>配置管理</td>
+<td>ConfigMap</td>
+<td>Apollo、Nacos等</td>
+</tr>
+<tr>
+<td>负载均衡</td>
+<td>Service</td>
+<td>Ribbon</td>
+</tr>
+<tr>
+<td>服务网关</td>
+<td>Ingress</td>
+<td>Gateway、Zuul、Traefik等</td>
+</tr>
+</tbody></table>
+<p>​    但是目前看来，目前K8s的功能对于完全实现一个微服务系统来说，相对较弱，而且我们要基于这些功能做一些应用、业务上的扩展的时候，会比较麻烦，或者根本无法扩展。</p>
+<p>​    所以K8s对微服务来说，还是应该充分发挥它在运维上的能力，系统开发应该交给更专业的这些微服务组件。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%85%8D%E7%BD%AE%E4%B8%AD%E5%BF%83/" rel="tag"># 配置中心</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/" rel="prev" title="微服务技术-容错限流">
+      <i class="fa fa-chevron-left"></i> 微服务技术-容错限流
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/11/07/02%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/" rel="next" title="微服务技术-分布式事务">
+      微服务技术-分布式事务 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E8%A6%81%E6%B1%82"><span class="nav-number">1.</span> <span class="nav-text">技术要求</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%83%AD%E6%9B%B4%E6%96%B0"><span class="nav-number">1.1.</span> <span class="nav-text">热更新</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%AB%98%E5%8F%AF%E7%94%A8"><span class="nav-number">1.2.</span> <span class="nav-text">高可用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%89%88%E6%9C%AC%E7%AE%A1%E7%90%86"><span class="nav-number">1.3.</span> <span class="nav-text">版本管理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%8B%E5%A5%BD%E6%80%A7"><span class="nav-number">1.4.</span> <span class="nav-text">友好性</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B"><span class="nav-number">2.</span> <span class="nav-text">技术选型</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Nacos"><span class="nav-number">2.1.</span> <span class="nav-text">Nacos</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Apollo"><span class="nav-number">2.2.</span> <span class="nav-text">Apollo</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Nacos-vs-Apollo"><span class="nav-number">2.3.</span> <span class="nav-text">Nacos vs Apollo</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8B%93%E5%B1%95%E6%80%9D%E8%80%83"><span class="nav-number">3.</span> <span class="nav-text">拓展思考</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

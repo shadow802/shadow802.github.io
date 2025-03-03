@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="背景    在Linux运维过程中，经常需要排查服务器的异常情况，当服务器因某些不明原因down机或者不响应，或者监控告警系统提示服务器某些指标出现异常，往往需要登录到这些服务器上进行异常原因排查，这时就需要一些常规的命令快速定位问题的所在，因此熟悉这些命令的使用，快速读懂它们的输出就非常重要。 常用方式    服务器一般有几个核心的指标比较重要，下面根据具体的指标，展开分析如何进行排查分析。 实">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux运维常用命令">
+<meta property="og:url" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="背景    在Linux运维过程中，经常需要排查服务器的异常情况，当服务器因某些不明原因down机或者不响应，或者监控告警系统提示服务器某些指标出现异常，往往需要登录到这些服务器上进行异常原因排查，这时就需要一些常规的命令快速定位问题的所在，因此熟悉这些命令的使用，快速读懂它们的输出就非常重要。 常用方式    服务器一般有几个核心的指标比较重要，下面根据具体的指标，展开分析如何进行排查分析。 实">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/iftop-remark.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/docker-stats-introduction.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/iotop-introduction.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/system-file-limit.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/file-introduction.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/pid-limit.png">
+<meta property="article:published_time" content="2022-06-20T16:00:00.000Z">
+<meta property="article:modified_time" content="2022-06-20T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Operations">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/iftop-remark.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Linux运维常用命令 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux运维常用命令
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-06-21 00:00:00" itemprop="dateCreated datePublished" datetime="2022-06-21T00:00:00+08:00">2022-06-21</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%BF%90%E7%BB%B4%E5%AE%9E%E8%B7%B5/" itemprop="url" rel="index"><span itemprop="name">运维实践</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h1><p>    在Linux运维过程中，经常需要排查服务器的异常情况，当服务器因某些不明原因down机或者不响应，或者监控告警系统提示服务器某些指标出现异常，往往需要登录到这些服务器上进行异常原因排查，这时就需要一些常规的命令快速定位问题的所在，因此熟悉这些命令的使用，快速读懂它们的输出就非常重要。</p>
+<h1 id="常用方式"><a href="#常用方式" class="headerlink" title="常用方式"></a>常用方式</h1><p>    服务器一般有几个核心的指标比较重要，下面根据具体的指标，展开分析如何进行排查分析。</p>
+<h2 id="实时查看"><a href="#实时查看" class="headerlink" title="实时查看"></a>实时查看</h2><h3 id="CPU"><a href="#CPU" class="headerlink" title="CPU"></a>CPU</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">top</span><br><span class="line"><span class="meta">#</span><span class="bash"> 按数字1可以展开每个cpu的情况</span></span><br><span class="line">vmstat</span><br></pre></td></tr></table></figure>
+
+<h3 id="Memory"><a href="#Memory" class="headerlink" title="Memory"></a>Memory</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">free -lh</span><br></pre></td></tr></table></figure>
+
+<h3 id="Network"><a href="#Network" class="headerlink" title="Network"></a>Network</h3><h4 id="流量情况"><a href="#流量情况" class="headerlink" title="流量情况"></a>流量情况</h4><ol>
+<li><p>iftop</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">man iftop</span><br><span class="line">iftop -n -i enp0s3</span><br></pre></td></tr></table></figure>
+
+<p><img src="iftop-remark.png"></p>
+</li>
+<li><p>ifconfig</p>
+</li>
+<li><p>netlog</p>
+</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">apt install nethogs</span><br><span class="line">man nethogs</span><br><span class="line"><span class="meta">#</span><span class="bash"> 可以在主机上查看哪些进程占用带宽较多</span></span><br><span class="line">nethogs </span><br></pre></td></tr></table></figure>
+
+<h4 id="Socket情况"><a href="#Socket情况" class="headerlink" title="Socket情况"></a>Socket情况</h4><p>    netstat/ss</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">man ss</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看TCP的连接数量</span></span><br><span class="line">ss  -tan|awk &#x27;NR&gt;1&#123;++S[$1]&#125;END&#123;for (a in S) print a,S[a]&#125;&#x27;</span><br><span class="line"><span class="meta">#</span><span class="bash"> 显示所有TCP Socket，不加-a不显示listenning的TCP socket</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> -l可以只显示listenning的socket</span></span><br><span class="line">ss -t -a</span><br><span class="line"><span class="meta">#</span><span class="bash"> 过滤某状态的TCP连接</span></span><br><span class="line">ss -tn -o state established</span><br></pre></td></tr></table></figure>
+
+<h4 id="容器情况"><a href="#容器情况" class="headerlink" title="容器情况"></a>容器情况</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker stat</span><br></pre></td></tr></table></figure>
+
+<p><img src="docker-stats-introduction.png"></p>
+<h3 id="Disk-I-O"><a href="#Disk-I-O" class="headerlink" title="Disk I/O"></a>Disk I/O</h3><ol>
+<li> iotop</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> iotop 默认按照Tid显示，可加参数-P按照Pid显示</span></span><br><span class="line">iotop -P</span><br></pre></td></tr></table></figure>
+
+<p><img src="iotop-introduction.png"></p>
+<ol start="2">
+<li>raid</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># 软raid的查看方式</span></span></span><br><span class="line">fdisk -l</span><br><span class="line">cat /proc/scsi/scsi</span><br><span class="line">或</span><br><span class="line">cat /proc/mdstat</span><br><span class="line">cat /etc/mdadm.conf</span><br></pre></td></tr></table></figure>
+
+<h3 id="File-System"><a href="#File-System" class="headerlink" title="File System"></a>File System</h3><h4 id="文件描述符"><a href="#文件描述符" class="headerlink" title="文件描述符"></a>文件描述符</h4><h5 id="系统级别"><a href="#系统级别" class="headerlink" title="系统级别"></a>系统级别</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sysctl -h</span><br><span class="line"><span class="meta">#</span><span class="bash"> 统计每个进程打开文件数，第二行是Pid，第一行是数量</span></span><br><span class="line">lsof -n|awk &#x27;&#123;print $2&#125;&#x27;|sort|uniq -c|sort -nr|more</span><br></pre></td></tr></table></figure>
+
+<p><img src="system-file-limit.png"></p>
+<blockquote>
+<p>这里用官方文档解释一下file-nr、open-nr、file-max分别代表的意思</p>
+</blockquote>
+<p><img src="file-introduction.png"></p>
+<p>    <a target="_blank" rel="noopener" href="https://docs.kernel.org/admin-guide/sysctl/fs.html">官方说明</a></p>
+<h5 id="用户级别"><a href="#用户级别" class="headerlink" title="用户级别"></a>用户级别</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ulimit -h</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查询单个用户进程打开文件数，后面加上数字可临时修改，对当前shell有效</span></span><br><span class="line">ulimit -n</span><br><span class="line"><span class="meta">#</span><span class="bash"> 永久设置，设置的格式内容可以参照/etc/security/limits.conf前面的描述</span>            </span><br><span class="line">vim /etc/security/limits.conf</span><br><span class="line"></span><br><span class="line">* soft nofile 65535</span><br><span class="line">* hard nofile 65535</span><br></pre></td></tr></table></figure>
+
+<h4 id="inode"><a href="#inode" class="headerlink" title="inode"></a>inode</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> inode在文件系统初始化的时候通过-N 指定数量</span></span><br><span class="line">df -i /</span><br></pre></td></tr></table></figure>
+
+<h4 id="磁盘分区及挂载、用量"><a href="#磁盘分区及挂载、用量" class="headerlink" title="磁盘分区及挂载、用量"></a>磁盘分区及挂载、用量</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看磁盘情况</span></span><br><span class="line">fdisk -l</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看分区、挂载</span></span><br><span class="line">df</span><br><span class="line">lsblk</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看文件夹下用量，进入该文件夹</span></span><br><span class="line">du -sh .</span><br></pre></td></tr></table></figure>
+
+<h3 id="Process-Thread"><a href="#Process-Thread" class="headerlink" title="Process/Thread"></a>Process/Thread</h3><ol>
+<li>Pid</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 系统对Pid限制</span></span><br><span class="line">sysctl -a | grep</span><br><span class="line">ulimit -u</span><br><span class="line">vim /etc/security/limits.con </span><br><span class="line">*        hard    nproc           5000</span><br><span class="line">*        soft    nproc           5000</span><br></pre></td></tr></table></figure>
+
+<p><img src="pid-limit.png"></p>
+<blockquote>
+<p> 在Linux操作系统中，线程和进程的数据结构是一样的，只不过线程是通过clone的方式创建的共享父进程的内存，而进程是通过fork产生的，拥有自己独立的内存。</p>
+<p>pid_max代表的是独立内存的进程的最大数量</p>
+<p>thread_max是代表的是共享内存的进程的最大数量</p>
+</blockquote>
+<ol start="2">
+<li>进程数/线程数</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看进程</span></span><br><span class="line">ps -ef</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看线程  -T     Show threads, possibly with SPID column.</span></span><br><span class="line">ps -eT</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>僵尸进程</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看zombie</span></span><br><span class="line">top</span><br><span class="line"><span class="meta">#</span><span class="bash"> 或者查看状态为Z的</span></span><br><span class="line">ps -ef | grep defunct</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>如何处理僵尸进程</p>
+<p>可以kill僵尸进程的父进程，这样僵尸进程就成为孤儿进程，会托管给init进程，init进程会清理僵尸进程</p>
+</blockquote>
+<h2 id="历史记录"><a href="#历史记录" class="headerlink" title="历史记录"></a>历史记录</h2><h3 id="sysstat"><a href="#sysstat" class="headerlink" title="sysstat"></a>sysstat</h3><p>    sysstat服务启动以后，每十分钟收集一次系统系统状态信息（定时任务：cat /etc/cron.d/sysstat），数据记录在/var/log/sa目录下。配置文件在/etc/sysconfig/sysstat。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">man sar</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看/var/<span class="built_in">log</span>/sa下的历史某天记录</span></span><br><span class="line">cd /var/log/sa</span><br><span class="line">ll -al</span><br><span class="line"><span class="meta">#</span><span class="bash"> sadd是二进制文件，可通过如下命令查看；sardd是文本文件，可以直接查看</span></span><br><span class="line">sar -f sa   </span><br></pre></td></tr></table></figure>
+
+<h3 id="系统日志"><a href="#系统日志" class="headerlink" title="系统日志"></a>系统日志</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">man journalctl</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看内核日志</span></span><br><span class="line">journalctl -k</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看上一次的启动日志</span></span><br><span class="line">journalctl -b -1</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Operations/" rel="tag"># Operations</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/06/19/K8s%E9%9B%86%E7%BE%A4%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0/" rel="prev" title="K8s集群运维杂记">
+      <i class="fa fa-chevron-left"></i> K8s集群运维杂记
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/" rel="next" title="Etcd实战笔记">
+      Etcd实战笔记 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%B8%B8%E7%94%A8%E6%96%B9%E5%BC%8F"><span class="nav-number">2.</span> <span class="nav-text">常用方式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E6%97%B6%E6%9F%A5%E7%9C%8B"><span class="nav-number">2.1.</span> <span class="nav-text">实时查看</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#CPU"><span class="nav-number">2.1.1.</span> <span class="nav-text">CPU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Memory"><span class="nav-number">2.1.2.</span> <span class="nav-text">Memory</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Network"><span class="nav-number">2.1.3.</span> <span class="nav-text">Network</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B5%81%E9%87%8F%E6%83%85%E5%86%B5"><span class="nav-number">2.1.3.1.</span> <span class="nav-text">流量情况</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Socket%E6%83%85%E5%86%B5"><span class="nav-number">2.1.3.2.</span> <span class="nav-text">Socket情况</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%B9%E5%99%A8%E6%83%85%E5%86%B5"><span class="nav-number">2.1.3.3.</span> <span class="nav-text">容器情况</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Disk-I-O"><span class="nav-number">2.1.4.</span> <span class="nav-text">Disk I&#x2F;O</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#File-System"><span class="nav-number">2.1.5.</span> <span class="nav-text">File System</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">2.1.5.1.</span> <span class="nav-text">文件描述符</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%B3%BB%E7%BB%9F%E7%BA%A7%E5%88%AB"><span class="nav-number">2.1.5.1.1.</span> <span class="nav-text">系统级别</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%94%A8%E6%88%B7%E7%BA%A7%E5%88%AB"><span class="nav-number">2.1.5.1.2.</span> <span class="nav-text">用户级别</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#inode"><span class="nav-number">2.1.5.2.</span> <span class="nav-text">inode</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A3%81%E7%9B%98%E5%88%86%E5%8C%BA%E5%8F%8A%E6%8C%82%E8%BD%BD%E3%80%81%E7%94%A8%E9%87%8F"><span class="nav-number">2.1.5.3.</span> <span class="nav-text">磁盘分区及挂载、用量</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Process-Thread"><span class="nav-number">2.1.6.</span> <span class="nav-text">Process&#x2F;Thread</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%86%E5%8F%B2%E8%AE%B0%E5%BD%95"><span class="nav-number">2.2.</span> <span class="nav-text">历史记录</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#sysstat"><span class="nav-number">2.2.1.</span> <span class="nav-text">sysstat</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%B3%BB%E7%BB%9F%E6%97%A5%E5%BF%97"><span class="nav-number">2.2.2.</span> <span class="nav-text">系统日志</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

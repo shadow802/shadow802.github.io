@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    随着互联网的兴起，分布式技术发展，越来越多的服务开始通过网络进行交互，Linux因其强大的网络功能，在服务器端作为底层操作系统长盛不衰，了解Linux Kernel级别的网络功能实现，有助于在Linux Kernel级别诊断应用网络问题，搭建更加牢固可靠的网络基础设施，为服务端应用更好的服务。     因C语言能力浅薄，独自阅读Linux Kernel代码吃力，本文借鉴于张彦飞的《深入">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux Kernel-网络收发包">
+<meta property="og:url" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言    随着互联网的兴起，分布式技术发展，越来越多的服务开始通过网络进行交互，Linux因其强大的网络功能，在服务器端作为底层操作系统长盛不衰，了解Linux Kernel级别的网络功能实现，有助于在Linux Kernel级别诊断应用网络问题，搭建更加牢固可靠的网络基础设施，为服务端应用更好的服务。     因C语言能力浅薄，独自阅读Linux Kernel代码吃力，本文借鉴于张彦飞的《深入">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/initcall.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/ksoftirqd.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/network-stack-init.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/network-system-register.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/igb-driver-register.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/igb-driver-probe.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/igb-open.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/socket.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/fd-socket.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/bind.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/listen.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/tcp_sock.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/connect.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/connect-softirq.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/hirq.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/recv-1.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/recv-2.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/recv-3.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/recv-4.png">
+<meta property="article:published_time" content="2022-09-18T16:00:00.000Z">
+<meta property="article:modified_time" content="2022-09-18T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Kernel">
+<meta property="article:tag" content="Network Stack">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/initcall.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Linux Kernel-网络收发包 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux Kernel-网络收发包
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-09-19 00:00:00" itemprop="dateCreated datePublished" datetime="2022-09-19T00:00:00+08:00">2022-09-19</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Linux-Kernel/" itemprop="url" rel="index"><span itemprop="name">Linux Kernel</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    随着互联网的兴起，分布式技术发展，越来越多的服务开始通过网络进行交互，Linux因其强大的网络功能，在服务器端作为底层操作系统长盛不衰，了解Linux Kernel级别的网络功能实现，有助于在Linux Kernel级别诊断应用网络问题，搭建更加牢固可靠的网络基础设施，为服务端应用更好的服务。</p>
+<p>    因C语言能力浅薄，独自阅读Linux Kernel代码吃力，本文借鉴于张彦飞的《深入理解Linux网络》，让飞哥领路，一起看一下网络收发包是如何在Linux Kernel中实现的。</p>
+<h1 id="准备工作"><a href="#准备工作" class="headerlink" title="准备工作"></a>准备工作</h1><p>    Linux操作系统内核启动，为收发包功能做准备工作，这里只看网络收发包相关初始化。</p>
+<h2 id="initcall"><a href="#initcall" class="headerlink" title="initcall"></a>initcall</h2><p><img src="initcall.png"></p>
+<p>    按照从左到右的顺序，看一下相关初始化的代码实现。</p>
+<h3 id="ksoftirq"><a href="#ksoftirq" class="headerlink" title="ksoftirq"></a>ksoftirq</h3><p><img src="ksoftirqd.png"></p>
+<p>    ksoftirqd中的run_ksoftirqd是实际的软中断处理方法，当进行网络收发包时，会根据相应的中断类型，调用对应的处理函数。</p>
+<h3 id="协议栈"><a href="#协议栈" class="headerlink" title="协议栈"></a>协议栈</h3><p><img src="network-stack-init.png"></p>
+<p>    从上面流程中可以看出，协议栈的初始化，并未进行任何收发包的相关操作，只是分别初始化了一些数组：</p>
+<ul>
+<li>inet_protos，其中包含了传输层（本例只分析TCP）tcp_protocol的handler方法。</li>
+<li>net_families，其中包含了socket创建时使用的inet_family_ops的create方法。</li>
+<li>ptype_base，其中包含了网络层处理函数func。</li>
+</ul>
+<p>    这些数组的实现，能够很容易的根据协议、协议簇、类型，找到数组中的元素，从而调用不同的实现方法。</p>
+<h3 id="网络子系统"><a href="#网络子系统" class="headerlink" title="网络子系统"></a>网络子系统</h3><p><img src="network-system-register.png"></p>
+<p>    softnet_data的数据结构如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Incoming packets are placed on per-cpu queues</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">softnet_data</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">Qdisc</span>        *<span class="title">output_queue</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">Qdisc</span>        **<span class="title">output_queue_tailp</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span>    <span class="title">poll_list</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sk_buff</span>        *<span class="title">completion_queue</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sk_buff_head</span>    <span class="title">process_queue</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* stats */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        processed;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        time_squeeze;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        cpu_collision;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        received_rps;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_RPS</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">softnet_data</span>    *<span class="title">rps_ipi_list</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Elements below can be accessed between CPUs for RPS */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">call_single_data</span>    <span class="title">csd</span> ____<span class="title">cacheline_aligned_in_smp</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">softnet_data</span>    *<span class="title">rps_ipi_next</span>;</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        cpu;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        input_queue_head;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        input_queue_tail;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span>        dropped;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sk_buff_head</span>    <span class="title">input_pkt_queue</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">napi_struct</span>    <span class="title">backlog</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>    NET_TX_SOFTIRQ代表收包的软中断，对应net_tx_action的处理函数，NET_RX_SOFTIRQ代表发包的软中断，对应net_rx_action的处理函数。</p>
+<h3 id="网卡驱动"><a href="#网卡驱动" class="headerlink" title="网卡驱动"></a>网卡驱动</h3><p>    以igb网卡为例，看一下驱动的注册过程。驱动在操作操作系统安装后，需要通过module_init向内核通报自己的信息（包括名称和操作方法）。</p>
+<p><img src="igb-driver-register.png"></p>
+<p>    igb_driver的信息如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">pci_driver</span> <span class="title">igb_driver</span> =</span> &#123;</span><br><span class="line">    .name     = igb_driver_name,</span><br><span class="line">    .id_table = igb_pci_tbl,</span><br><span class="line">    .probe    = igb_probe,</span><br><span class="line">    .remove   = igb_remove,</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_PM</span></span><br><span class="line">    .driver.pm = &amp;igb_pm_ops,</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    .shutdown = igb_shutdown,</span><br><span class="line">    .sriov_configure = igb_pci_sriov_configure,</span><br><span class="line">    .err_handler = &amp;igb_err_handler</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>    Linux系统启动时，扫描PCI，找到PCI设备（设备识别），如果该设备已经注册驱动，则调用驱动的probe函数，probe方法执行的目的是为了让设备处于ready的状态。</p>
+<p>    网卡的驱动设备都必须实现probe方法。</p>
+<p><img src="igb-driver-probe.png"></p>
+<h2 id="网卡启动"><a href="#网卡启动" class="headerlink" title="网卡启动"></a>网卡启动</h2><p><img src="igb-open.png"></p>
+<p>    网卡启动之后，主要通过igb_open的调用，实现了网卡多队列的硬中断处理函数的注册，同时，在回调函数igb_msix_ring中，明确了使用网卡驱动中的igb_poll函数进行数据的获取。</p>
+<h1 id="代码示例"><a href="#代码示例" class="headerlink" title="代码示例"></a>代码示例</h1><p>    Linux Kernel完成准备工作后，下面通过一段简单的C语言服务器、客户端代码实例（暂不考虑性能因素）。沿着这一段基础的代码实现，看一下Kernel的TCP协议收发包是如何工作的。</p>
+<h2 id="服务端"><a href="#服务端" class="headerlink" title="服务端"></a>服务端</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;  </span><br><span class="line">    <span class="keyword">int</span> listenfd = socket(AF_INET, SOCK_STREAM, <span class="number">0</span>);  </span><br><span class="line">    bind(listenfd, ...);</span><br><span class="line">    listen(listenfd, ...);</span><br><span class="line">    connfd=accept(listenfd, ....);</span><br><span class="line">    read(connfd);</span><br><span class="line">    write(connfd);</span><br><span class="line">    close(connfd);</span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<h2 id="客户端"><a href="#客户端" class="headerlink" title="客户端"></a>客户端</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;  </span><br><span class="line">    <span class="keyword">int</span> sk = socket(AF_INET, SOCK_STREAM, <span class="number">0</span>);  </span><br><span class="line">    connect(sk, ...);</span><br><span class="line">    write(sk, ...);</span><br><span class="line">    read(sk, ...);  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="系统调用分析"><a href="#系统调用分析" class="headerlink" title="系统调用分析"></a>系统调用分析</h2><p>    按照如下流程来看一下简单的客户端和服务端系统调用分别都做了哪些工作。</p>
+<ol>
+<li>服务器端服务启动，监听端口，等待数据到达（涉及socket、bind、listen函数）。</li>
+<li>客户端连接服务端发送数据，等待返回（涉及socket、connect、send函数）。</li>
+<li>服务端接收连接，并读取客户端数据，然后返回数据到客户端（涉及accept、recv、send函数）。</li>
+<li>客户端读取服务端返回的数据，关闭连接（涉及recv、close函数）。</li>
+</ol>
+<h3 id="socket"><a href="#socket" class="headerlink" title="socket"></a>socket</h3><p>    socker的创建过程，客户端和服务端想要完成通信，都必须创建自己的socket，然后使用返回的文件描述符完成后续的操作。</p>
+<p><img src="socket.png"></p>
+<p>    通过socket的创建，内核建立其如下数据结构：</p>
+<p><img src="fd-socket.png"></p>
+<h3 id="bind"><a href="#bind" class="headerlink" title="bind"></a>bind</h3><p>    这里主要进行端口检查，确定所使用的端口。</p>
+<p><img src="bind.png"></p>
+<h3 id="listen"><a href="#listen" class="headerlink" title="listen"></a>listen</h3><p>    listen的过程主要初始化连接队列，根据系统参数和用户参数，确定队列的长度。</p>
+<p><img src="listen.png"></p>
+<p>    在内核中，经常看到struct sock、tcp_sock、inet_connection_sock、inet_sock、sock之间的强制转化，他们之间的嵌套关系如下：</p>
+<p><img src="tcp_sock.png"></p>
+<h3 id="connect-send-recv"><a href="#connect-send-recv" class="headerlink" title="connect/send/recv"></a>connect/send/recv</h3><p>    在connect过程中，会进行TCP三次握手，建立连接，其中也会涉及到send和recv的系统调用处理流程。</p>
+<p>    通过socket创建，bind绑定端口，listen开启监听，服务器端已经做好了接收连接的准备，客户端也通过socket创建得到了socket的文件描述符，下一步通过connect建立连接，然后进行数据发送。</p>
+<h4 id="数据包发送"><a href="#数据包发送" class="headerlink" title="数据包发送"></a>数据包发送</h4><p><img src="connect.png" alt="loading-ag-324"></p>
+<p>     上面构造了syn的包，并直接发送，当配额不足的时候，是需要走软中断发送的。在网络子系统初始化的时候，注册了NET_TX_SOFTIRQ中断的处理函数net_tx_action。</p>
+<p><img src="connect-softirq.png"></p>
+<p>    可以看到在软中断处理数据包发送中，会回调__qdisc_run最后都通过调用网卡驱动的发送方法完成发送，数据发送完成后，网卡会触发硬中断，产生NET_RX_SOFTIRQ的软中端，并通过该中断的函数中的igb_clean_tx_irq，清理数据。</p>
+<p>    此时syn包离开了客户端，经由网络发送给服务器端，下面来看一下服务器端收包过程。</p>
+<h4 id="数据包接收"><a href="#数据包接收" class="headerlink" title="数据包接收"></a>数据包接收</h4><p>    网卡启动一节中，注册了硬中断的处理函数igb_msix_ring，数据包到达网卡后，网卡会通过硬中断通知cpu，此时igb_msix_ring执行。</p>
+<p><img src="hirq.png"></p>
+<p>    ksoftirq进程通过ksoftirqd_should_run方法判断是否有软中断写入，当软中断写入时，执行run_ksoftirqd，h-&gt;action(h) 调用中断对应的处理函数，网络子系统中，提到过NET_RX_SOFTIRQ的中断处理函数是net_rx_action。</p>
+<p><img src="recv-1.png"></p>
+<p>    数据包经由网卡驱动、网络层的处理，即将进入传输层。传输层收到syn包后，需进行三次握手的过程，现在已经清楚了数据包的接收和发送，后续数据包的收发在网卡、网卡驱动、网络层的处理是一样的，重点看三次握手传输层的处理。</p>
+<h4 id="三次握手"><a href="#三次握手" class="headerlink" title="三次握手"></a>三次握手</h4><p><img src="recv-2.png"></p>
+<p>    服务端构建了syn+ack包后，发送给客户端，服务端的发送、客户端的接收不再赘述，客户端收到syn+ack，传输层也是从tcp_v4_rcv开始，只不过客户端的状态是TCP_SYN_SENT。</p>
+<p><img src="recv-3.png" alt="loading-ag-502"></p>
+<p>    客户端发送ack，给服务器端，服务器端传输层的处理流程。</p>
+<p><img src="recv-4.png"></p>
+<h3 id="close"><a href="#close" class="headerlink" title="close"></a>close</h3><p>    四次挥手的处理与三次握手整体流程基本一致，都是从tcp_v4_rcv进入到传输层，然后根据当前所处的状态以及接收到的数据包做分别的处理。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Linux/" rel="tag"># Linux</a>
+              <a href="/tags/Kernel/" rel="tag"># Kernel</a>
+              <a href="/tags/Network-Stack/" rel="tag"># Network Stack</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/" rel="prev" title="Etcd实战笔记">
+      <i class="fa fa-chevron-left"></i> Etcd实战笔记
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/" rel="next" title="Java容器化部署杂记">
+      Java容器化部署杂记 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="nav-number">2.</span> <span class="nav-text">准备工作</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#initcall"><span class="nav-number">2.1.</span> <span class="nav-text">initcall</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ksoftirq"><span class="nav-number">2.1.1.</span> <span class="nav-text">ksoftirq</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%8F%E8%AE%AE%E6%A0%88"><span class="nav-number">2.1.2.</span> <span class="nav-text">协议栈</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E5%AD%90%E7%B3%BB%E7%BB%9F"><span class="nav-number">2.1.3.</span> <span class="nav-text">网络子系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BD%91%E5%8D%A1%E9%A9%B1%E5%8A%A8"><span class="nav-number">2.1.4.</span> <span class="nav-text">网卡驱动</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BD%91%E5%8D%A1%E5%90%AF%E5%8A%A8"><span class="nav-number">2.2.</span> <span class="nav-text">网卡启动</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81%E7%A4%BA%E4%BE%8B"><span class="nav-number">3.</span> <span class="nav-text">代码示例</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E7%AB%AF"><span class="nav-number">3.1.</span> <span class="nav-text">服务端</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF"><span class="nav-number">3.2.</span> <span class="nav-text">客户端</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90"><span class="nav-number">3.3.</span> <span class="nav-text">系统调用分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#socket"><span class="nav-number">3.3.1.</span> <span class="nav-text">socket</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#bind"><span class="nav-number">3.3.2.</span> <span class="nav-text">bind</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#listen"><span class="nav-number">3.3.3.</span> <span class="nav-text">listen</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#connect-send-recv"><span class="nav-number">3.3.4.</span> <span class="nav-text">connect&#x2F;send&#x2F;recv</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%8C%85%E5%8F%91%E9%80%81"><span class="nav-number">3.3.4.1.</span> <span class="nav-text">数据包发送</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E5%8C%85%E6%8E%A5%E6%94%B6"><span class="nav-number">3.3.4.2.</span> <span class="nav-text">数据包接收</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%89%E6%AC%A1%E6%8F%A1%E6%89%8B"><span class="nav-number">3.3.4.3.</span> <span class="nav-text">三次握手</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#close"><span class="nav-number">3.3.5.</span> <span class="nav-text">close</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

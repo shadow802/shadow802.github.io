@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="基础语法内建基本数据类型​    1、bool（相当于java中的boolean）、string。​    2、（u）代表无符号，int，int8，int16、int32、int64、uintptr。​    3、byte、rune（相当于java中的char，32位，占4个字节，为了应对多国语言，rune可以对字符重新编码，统一编码长度为4个字节，并重新存储）。​    4、float32、fl">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Go语言基础">
+<meta property="og:url" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="基础语法内建基本数据类型​    1、bool（相当于java中的boolean）、string。​    2、（u）代表无符号，int，int8，int16、int32、int64、uintptr。​    3、byte、rune（相当于java中的char，32位，占4个字节，为了应对多国语言，rune可以对字符重新编码，统一编码长度为4个字节，并重新存储）。​    4、float32、fl">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/Slice.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/TestCover.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/performance.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/Goroutine.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/race.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/channel.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/csp.png">
+<meta property="article:published_time" content="2021-03-09T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-03-09T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Golang">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/Slice.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Go语言基础 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Go语言基础
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-03-10 00:00:00" itemprop="dateCreated datePublished" datetime="2021-03-10T00:00:00+08:00">2021-03-10</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Golang/" itemprop="url" rel="index"><span itemprop="name">Golang</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="基础语法"><a href="#基础语法" class="headerlink" title="基础语法"></a>基础语法</h1><h2 id="内建基本数据类型"><a href="#内建基本数据类型" class="headerlink" title="内建基本数据类型"></a>内建基本数据类型</h2><p>​    1、bool（相当于java中的boolean）、string。<br>​    2、（u）代表无符号，int，int8，int16、int32、int64、uintptr。<br>​    3、byte、rune（相当于java中的char，32位，占4个字节，为了应对多国语言，rune可以对字符重新编码，统一编码长度为4个字节，并重新存储）。<br>​    4、float32、float64，complex64、complex128（这个对应数学中的复数）。</p>
+<h2 id="强制类型转换"><a href="#强制类型转换" class="headerlink" title="强制类型转换"></a>强制类型转换</h2><p>​    Go语言中需要进行显示的数据类型转换。</p>
+<h2 id="函数是一等公民"><a href="#函数是一等公民" class="headerlink" title="函数是一等公民"></a>函数是一等公民</h2><p>​    1、Go语言 调用方法返回的变量必须接受，如果不需要使用返回的数据，可以使用 “_”。 </p>
+<p>​    2、数组在方法中作为参数时，是作为值传递的也就说，是拷贝的。</p>
+<h2 id="Slice"><a href="#Slice" class="headerlink" title="Slice"></a>Slice</h2><p>​    1、Slice本身是没有数据的，是对底层数据的视图。</p>
+<p>​    2、[1]int [2]int是不同类型的数组。</p>
+<p>​    3、Go语言一般不直接使用数组，而是使用切片。</p>
+<p>​    4、Slice可以向后扩展，但不能超过cap。</p>
+<p>​    5、数组遍历可以使用range</p>
+<p><img src="Slice.png" alt="Slice"></p>
+<h2 id="变量及函数的可见性"><a href="#变量及函数的可见性" class="headerlink" title="变量及函数的可见性"></a>变量及函数的可见性</h2><p>​    Go语言同一个目录下面只能有一个包名，函数及结构体变量的命名规范决定其可见性。统一使用驼峰式命名。</p>
+<p>​    1、首字母大写代表是公共的。首字母小写代表是私有的。</p>
+<h2 id="接口"><a href="#接口" class="headerlink" title="接口"></a>接口</h2><h3 id="Duck-Typing"><a href="#Duck-Typing" class="headerlink" title="Duck Typing"></a>Duck Typing</h3><p>​    Go语言在面向对象时，仅支持接口和封装，不支持继承和多态。与Java中面向接口编程不同的是，Go采用的是一种duck typing的方式，由接口使用者来定义接口，实现者的代码只需要实现一个方法即可，不需要使用到使用者定义的任何类型。</p>
+<p>​    接口可通过组合的方式进行扩展或者是更高层次的抽象设计。</p>
+<h3 id="Type-Assertion"><a href="#Type-Assertion" class="headerlink" title="Type Assertion"></a>Type Assertion</h3><p>​    查看接口的实现，会发现Go语言的接口实现，是由一个类型Type，一个值Value（这个值可能是数值，也有可能是指针）。</p>
+<p>​    取用接口实现对象通过：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> r Retriever</span><br><span class="line">r = &amp;mock.TestData&#123;Contents: <span class="string">&quot;shadow&quot;</span>&#125;</span><br><span class="line"><span class="comment">//查看接口的实现，发现一个类型Type，一个值Value(可能是值，也可能是指针)</span></span><br><span class="line">fmt.Printf(<span class="string">&quot;%T %v\n&quot;</span>, r, r)</span><br><span class="line"><span class="comment">//Type Assertion</span></span><br><span class="line">r2 := r.(*mock.TestData)</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="资源管理"><a href="#资源管理" class="headerlink" title="资源管理"></a>资源管理</h2><p>​    在一些I/O操作中，往往要对资源打开，然后要保证资源的关闭，及时释放资源，防止导致资源耗尽。Go语言中通过defer延迟执行，保证在任何情况下，defer后面的方法总会被执行。所以通常习惯上，在打开一个资源后，后面要及时跟上defer关闭相应的资源。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">file, err := os.OpenFile(<span class="string">&quot;fib.txt&quot;</span>, os.O_EXCL | os.O_CREATE, <span class="number">0666</span>)  <span class="comment">//存在文件会引起异常</span></span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="comment">//异常处理代码</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">defer</span> file.Close()</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="异常处理"><a href="#异常处理" class="headerlink" title="异常处理"></a>异常处理</h2><p>​    对于异常的处理，Go语言可以通过panic向上层抛出系统异常，也可以直接在函数的返回值中返回error的异常信息。</p>
+<p>​    1、对于底层panic的异常，可以通过函数封装相应的函数调用，然后在外层函数体内，通过defer  recover对相应的相应的异常进行统一处理。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">defer</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		err := <span class="built_in">recover</span>()</span><br><span class="line">		<span class="keyword">if</span> r, ok := err.(error); ok&#123;</span><br><span class="line">			fmt.Println(r)</span><br><span class="line">		&#125;<span class="keyword">else</span>&#123;</span><br><span class="line">			<span class="built_in">panic</span>(err)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;()</span><br><span class="line"><span class="comment">//函数调用</span></span><br></pre></td></tr></table></figure>
+
+<p>​    2、对于返回值的异常，通过与零值（nil）对比，判断是否有异常，然后进行异常处理。</p>
+<h2 id="单元测试"><a href="#单元测试" class="headerlink" title="单元测试"></a>单元测试</h2><p>​    Go语言的语法可以让我们更容易地去实践表格驱动测试，具备一下优点：</p>
+<p>​    1、更容易分离测试数据和测试逻辑。</p>
+<p>​    2、自定义出错信息。</p>
+<p>​    3、允许部分失败。</p>
+<p>​    Go语言测试文件编写规范：</p>
+<p>​    1、测试用例文件与测试目标文件在同一目录下，测试文件命名为XXX_test.go</p>
+<p>​    2、测试方法命名按照：Test[方法名称]（t *testing.T），性能测试要使用（b *testing.B）这样的参数。</p>
+<p>​    3、使用2中的参数进行错误输出，例如：b.Errorf(“expected %d , but got %d”, length, actual)。</p>
+<h3 id="测试覆盖率"><a href="#测试覆盖率" class="headerlink" title="测试覆盖率"></a>测试覆盖率</h3><p>​    1、进入目标测试代码目录执行go test。</p>
+<p>​    2、执行go test -coverprofile=c.out 生成测试覆盖率文件。</p>
+<p>​    3、go tool cover -html c.out 查看测试覆盖率文件</p>
+<p><img src="TestCover.png" alt="TestCover"></p>
+<h3 id="性能测试优化"><a href="#性能测试优化" class="headerlink" title="性能测试优化"></a>性能测试优化</h3><p>​    1、进行性能测试：go test -bench .</p>
+<p>​    2、使用pprof进行性能调优：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">go</span> test -bench . -cpuprofile cpu.out</span><br><span class="line"><span class="keyword">go</span> tool pprof cpu.out <span class="comment">//进入控制台</span></span><br><span class="line">web  <span class="comment">//采用web的方式查看。 需要装插件显示svg。</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="performance.png" alt="performance">            </p>
+<h2 id="文档"><a href="#文档" class="headerlink" title="文档"></a>文档</h2><p>​    1、需要godoc（需要安装）、go doc来查看文档</p>
+<p>​    2、使用go doc fmt.Println来查看具体接口文档</p>
+<p>​    3、可以使用Example关键字放在方法的开头，作为实例代码，运行测试的时候会检查Example的结果是否正确   （//Output 来写预期结果）</p>
+<h1 id="进阶知识"><a href="#进阶知识" class="headerlink" title="进阶知识"></a>进阶知识</h1><p>​    <a href="https://shadow802.gitee.io/2021/03/10/Go%E8%AF%AD%E8%A8%80%E5%9F%BA%E7%A1%80/shadow.zip">代码样例</a></p>
+<h2 id="并发编程"><a href="#并发编程" class="headerlink" title="并发编程"></a>并发编程</h2><h3 id="Goroutine"><a href="#Goroutine" class="headerlink" title="Goroutine"></a>Goroutine</h3><p>​    1、是一种协程 Coroutine。</p>
+<p>​          轻量级的”线程”。</p>
+<p>​          非抢占式多任务处理，由协程主动交出控制权。区别于线程，由操作系统调度、分时间片执行。</p>
+<p>​          编译器、解释器、虚拟机层面的多任务。</p>
+<p>​          多个协程可以在一个或者是多个线程上执行。</p>
+<p>​    2 、子程序是协程的一个特例。调度器来决定协程是否放在同一个线程中。</p>
+<p><img src="Goroutine.png" alt="Goroutine"></p>
+<p>​    </p>
+<p>​    3、Gorotine的代码实现很简单，任何函数只要加上 go就能送给调度器进行调度：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span>&#123;</span><br><span class="line">	<span class="comment">//do something</span></span><br><span class="line">&#125;()</span><br></pre></td></tr></table></figure>
+
+<p>​           不需要在定义时区分是否是异步函数。</p>
+<p>​           调度器在合适的点进行切换，可能切换的点：</p>
+<p>​                I/O、select、channel、等待锁、函数调用、runtime.Gosched()。仅作为参考。</p>
+<p>​    4、可以使用go run -race xxxx.go 检测数据冲突</p>
+<p><img src="race.png" alt="race"></p>
+<h3 id="Channel"><a href="#Channel" class="headerlink" title="Channel"></a>Channel</h3><p>​    1、Channel作为GoRoutine之间推荐的通信方式</p>
+<p><img src="channel.png" alt="channel"></p>
+<p>​    2、Communication Sequential Process（CSP）</p>
+<p><img src="csp.png" alt="csp"></p>
+<p>​    3、等待任务完成可以使用WaitGroup</p>
+<h3 id="Select"><a href="#Select" class="headerlink" title="Select"></a>Select</h3><p>​    1、for  select可以让我们同时做很多事情，满足条件就做。</p>
+<p>​    2、在select case中，如果channel是nil会阻塞住，当满足条件了之后，会进行，可以利用这个机制，控制case是否执行。</p>
+<p>​    </p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Golang/" rel="tag"># Golang</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/" rel="prev" title="监控技术-K8s + Promethues + Grafana方案实践">
+      <i class="fa fa-chevron-left"></i> 监控技术-K8s + Promethues + Grafana方案实践
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/03/11/Kubernetes-Containerd%E9%83%A8%E7%BD%B2%E5%AE%9E%E8%B7%B5/" rel="next" title="Kubernetes-Containerd部署实践">
+      Kubernetes-Containerd部署实践 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E8%AF%AD%E6%B3%95"><span class="nav-number">1.</span> <span class="nav-text">基础语法</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%86%85%E5%BB%BA%E5%9F%BA%E6%9C%AC%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B"><span class="nav-number">1.1.</span> <span class="nav-text">内建基本数据类型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%BA%E5%88%B6%E7%B1%BB%E5%9E%8B%E8%BD%AC%E6%8D%A2"><span class="nav-number">1.2.</span> <span class="nav-text">强制类型转换</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%87%BD%E6%95%B0%E6%98%AF%E4%B8%80%E7%AD%89%E5%85%AC%E6%B0%91"><span class="nav-number">1.3.</span> <span class="nav-text">函数是一等公民</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Slice"><span class="nav-number">1.4.</span> <span class="nav-text">Slice</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%98%E9%87%8F%E5%8F%8A%E5%87%BD%E6%95%B0%E7%9A%84%E5%8F%AF%E8%A7%81%E6%80%A7"><span class="nav-number">1.5.</span> <span class="nav-text">变量及函数的可见性</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3"><span class="nav-number">1.6.</span> <span class="nav-text">接口</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Duck-Typing"><span class="nav-number">1.6.1.</span> <span class="nav-text">Duck Typing</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Type-Assertion"><span class="nav-number">1.6.2.</span> <span class="nav-text">Type Assertion</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B5%84%E6%BA%90%E7%AE%A1%E7%90%86"><span class="nav-number">1.7.</span> <span class="nav-text">资源管理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="nav-number">1.8.</span> <span class="nav-text">异常处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95"><span class="nav-number">1.9.</span> <span class="nav-text">单元测试</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95%E8%A6%86%E7%9B%96%E7%8E%87"><span class="nav-number">1.9.1.</span> <span class="nav-text">测试覆盖率</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E4%BC%98%E5%8C%96"><span class="nav-number">1.9.2.</span> <span class="nav-text">性能测试优化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%96%87%E6%A1%A3"><span class="nav-number">1.10.</span> <span class="nav-text">文档</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%BF%9B%E9%98%B6%E7%9F%A5%E8%AF%86"><span class="nav-number">2.</span> <span class="nav-text">进阶知识</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B9%B6%E5%8F%91%E7%BC%96%E7%A8%8B"><span class="nav-number">2.1.</span> <span class="nav-text">并发编程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Goroutine"><span class="nav-number">2.1.1.</span> <span class="nav-text">Goroutine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Channel"><span class="nav-number">2.1.2.</span> <span class="nav-text">Channel</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Select"><span class="nav-number">2.1.3.</span> <span class="nav-text">Select</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

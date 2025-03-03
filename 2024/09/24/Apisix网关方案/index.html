@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="背景    企业内部平台需搭建统一的网关服务，托管认证、鉴权等公共服务，并为各领域业务、不同集群内部的应用服务提供外部访问方式以及灵活的插件配置策略。 架构概览    OpenResty是一个基于Nginx的Lua扩展的强大的Web应用服务平台。通过集成大量的Nginx模块、Lua库、LuaJIT，帮助开发者，通过使用Lua编写脚本，快速构建可扩展的高性能Web应用服务。     Apisix构建">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Apisix网关方案">
+<meta property="og:url" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="背景    企业内部平台需搭建统一的网关服务，托管认证、鉴权等公共服务，并为各领域业务、不同集群内部的应用服务提供外部访问方式以及灵活的插件配置策略。 架构概览    OpenResty是一个基于Nginx的Lua扩展的强大的Web应用服务平台。通过集成大量的Nginx模块、Lua库、LuaJIT，帮助开发者，通过使用Lua编写脚本，快速构建可扩展的高性能Web应用服务。     Apisix构建">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/api7ee3.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/lua-cosocket.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/cosoket-api.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix-code-start.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix-nginx-conf.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/openresty-directives.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix-plugin-phase.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix-service.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/api7ee3-impl.jpg">
+<meta property="article:published_time" content="2024-09-23T16:00:00.000Z">
+<meta property="article:modified_time" content="2024-09-23T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Gateway">
+<meta property="article:tag" content="Apisix">
+<meta property="article:tag" content="OpenResty">
+<meta property="article:tag" content="Lua">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/apisix.jpg">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Apisix网关方案 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2024/09/24/Apisix%E7%BD%91%E5%85%B3%E6%96%B9%E6%A1%88/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Apisix网关方案
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2024-09-24 00:00:00" itemprop="dateCreated datePublished" datetime="2024-09-24T00:00:00+08:00">2024-09-24</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%B8%AD%E9%97%B4%E4%BB%B6/" itemprop="url" rel="index"><span itemprop="name">中间件</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h1><p>    企业内部平台需搭建统一的网关服务，托管认证、鉴权等公共服务，并为各领域业务、不同集群内部的应用服务提供外部访问方式以及灵活的插件配置策略。</p>
+<h1 id="架构概览"><a href="#架构概览" class="headerlink" title="架构概览"></a>架构概览</h1><p>    OpenResty是一个基于Nginx的Lua扩展的强大的Web应用服务平台。通过集成大量的Nginx模块、Lua库、LuaJIT，帮助开发者，通过使用Lua编写脚本，快速构建可扩展的高性能Web应用服务。</p>
+<p>    Apisix构建在Ngnix、lua-nginx-module之上，并使用了OpenResty中大量的精心编写的优秀库，提供了强大的插件扩展能力（Lua、WASM、Go、Java、Python等）。</p>
+<p><img src="apisix.jpg"></p>
+<p>    Apisix由API7.ai（支流科技）开发和捐赠，同时提供企业版的服务api7ee3。主要包括:</p>
+<ul>
+<li><p>dashboard：可视化UI操作页面。</p>
+</li>
+<li><p>dp-manager：兼容网关对etcd api依赖，使用<a target="_blank" rel="noopener" href="https://github.com/k3s-io/kine">kine</a>转化为关系型数据的查询。</p>
+</li>
+<li><p>gateway：支持数据面和控制面分开部署。</p>
+</li>
+<li><p>关系型数据库（MySQL、PostgreSQL）：持久化数据，用以替换etcd。</p>
+</li>
+</ul>
+<p><img src="api7ee3.jpg"></p>
+<h1 id="基础知识"><a href="#基础知识" class="headerlink" title="基础知识"></a>基础知识</h1><h2 id="LuaJIT"><a href="#LuaJIT" class="headerlink" title="LuaJIT"></a>LuaJIT</h2><p>    在OpenResty中，每个Nginx的Worker中都运行着一个LuaVM，自从 OpenResty 1.5.8.1 版本之后，由于性能优势的原因，默认捆绑的 Lua 解释器就被替换成了 LuaJIT。</p>
+<p>    LuaJIT的解释器在执行字节码的同时，会记录运行时的统计信息，当认为某些代码足够热便会触发JIT编译器开始工作，JIT 编译器会从热函数的入口或者热循环的某个位置开始，尝试编译对应 Lua 代码路径。 编译的过程是把 LuaJIT 字节码先转化成 LuaJIT 自定义的中间码（IR），然后再生成目标机器的机器码。</p>
+<p>    其次，LuJIT 还紧密结合了 FFI（Foreign Function Interface），可以直接在 Lua 代码中调用外部的 C 函数或者 C 数据结构。</p>
+<p>    LuaJIT 的测评报告表明，在数值运算、循环与函数调用、协程切换、字符串操作等许多方面它的加速效果都很显著。凭借着 FFI 特性，LuaJIT 在那些需要频繁地调用外部 C/C++ 代码的场景，也要比标准 Lua 解释器快很多。</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- Lua调用C语言</span></span><br><span class="line"><span class="keyword">local</span> ffi = <span class="built_in">require</span>(ffi)</span><br><span class="line">ffi.cdef <span class="string">[[</span></span><br><span class="line"><span class="string">    int printf(const char *fmt, ...);</span></span><br><span class="line"><span class="string">]]</span></span><br><span class="line">ffi.C.prinf(<span class="string">&quot;hello %s&quot;</span>, <span class="string">&quot;world&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<h2 id="Cosocket"><a href="#Cosocket" class="headerlink" title="Cosocket"></a>Cosocket</h2><blockquote>
+<p>    cosocket = coroutine +  socket</p>
+</blockquote>
+<p>    OpenResty的cosocket将lua的协程和Nginx的socket事件机制联系到了一起，使得用户在Lua脚本中的每一个网络操作，都可以充分利用Nginx的非阻塞网络IO。</p>
+<p><img src="lua-cosocket.png"></p>
+<p>    OpenResty以此为基础，提供了大量在Lua中使用网络操作的<a target="_blank" rel="noopener" href="https://github.com/openresty/lua-nginx-module?tab=readme-ov-file#description">cosocket api</a>。</p>
+<p><img src="cosoket-api.jpg"></p>
+<h2 id="Apisix"><a href="#Apisix" class="headerlink" title="Apisix"></a>Apisix</h2><h3 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h3><p>    因此前对OpenResty和Lua知之甚少，为能更好地理解Apisix与OpenResty、Nginx、Lua几者之间的关联，梳理了Apisix的总体启动代码，便于深入理解和后续运维查证问题。</p>
+<p><img src="apisix-code-start.jpg"></p>
+<p>    总体上看，Apisix的启动，最终转换成了OpenResty的启动，并通过模版维护了nginx.conf的配置文件，在nginx.conf的配置文件中，通过Nginx的Lua扩展能力，在整个Nginx和用户请求的生命周期的不同位置分别进行插桩，并调用了Apisix的相关的Lua代码实现，这一点结合apisix生成的nginx.conf的配置文件（只截取了部分）来看更明显。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat nginx.conf | grep -C1 &quot;by_lua_block&quot;</span><br></pre></td></tr></table></figure>
+
+<p><img src="apisix-nginx-conf.jpg"></p>
+<h3 id="插件"><a href="#插件" class="headerlink" title="插件"></a>插件</h3><p>    Apisix支持Lua、Wasm、外部服务三种插件方案。</p>
+<ul>
+<li><p>Lua，方案成熟，生产可用。</p>
+</li>
+<li><p>Wasm，目前只实现了少量API，<a target="_blank" rel="noopener" href="https://github.com/api7/wasm-nginx-module">wasm-nginx-module</a>。</p>
+</li>
+<li><p>外部服务，只可以配置一个外部服务，通过UDS通信。</p>
+<p>本文重点关注落地方案所使用的lua插件。</p>
+</li>
+</ul>
+<p>  在Apisix中，插件可以附着的位置包括Route、Service、Consumer或者是在Plugin Config中引用。</p>
+<p>（1）<a target="_blank" rel="noopener" href="https://apisix.apache.org/zh/docs/apisix/terminology/plugin/#%E6%8F%92%E4%BB%B6%E6%89%A7%E8%A1%8C%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F">生命周期</a></p>
+<p>    根据OpenResty的<a target="_blank" rel="noopener" href="https://openresty-reference.readthedocs.io/en/latest/Directives/">指令设计</a></p>
+<p><img src="openresty-directives.png"></p>
+<p>插件可以在如下的阶段发挥作用，每个阶段分别对应插件代码中相应的实现方法：</p>
+<p><img src="apisix-plugin-phase.jpg"></p>
+<p>（2）<a target="_blank" rel="noopener" href="https://apisix.apache.org/zh/docs/apisix/terminology/plugin/#%E6%8F%92%E4%BB%B6%E6%89%A7%E8%A1%8C%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F">执行顺序</a></p>
+<p>（3）<a target="_blank" rel="noopener" href="https://apisix.apache.org/zh/docs/apisix/terminology/plugin/#%E6%8F%92%E4%BB%B6%E5%90%88%E5%B9%B6%E4%BC%98%E5%85%88%E9%A1%BA%E5%BA%8F">插件合并优先顺序</a></p>
+<p>（4）<a target="_blank" rel="noopener" href="https://apisix.apache.org/zh/docs/apisix/terminology/plugin/#%E6%8F%92%E4%BB%B6%E5%90%88%E5%B9%B6%E4%BC%98%E5%85%88%E9%A1%BA%E5%BA%8F">插件优先级</a></p>
+<p>（5）配置</p>
+<p>    插件从使用上，分为如下三种配置方式：</p>
+<ul>
+<li><p>metadata</p>
+<p>使用API维护插件的公共配置。</p>
+</li>
+</ul>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 在插件中通过如下代码获取metadata的公共配置</span></span><br><span class="line"><span class="keyword">local</span> plugin = <span class="built_in">require</span>(<span class="string">&quot;apisix.plugin&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">local</span> metadata = plugin.plugin_metadata(plugin_name)</span><br><span class="line"><span class="keyword">if</span> metadata <span class="keyword">and</span> metadata.value <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">        redis_host = metadata.value.redis_host,</span><br><span class="line">        redis_port = metadata.value.redis_port,</span><br><span class="line">        redis_password = metadata.value.redis_password,</span><br><span class="line">        redis_database = metadata.value.redis_database</span><br><span class="line">    &#125;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>attribute<br>使用配置文件维护插件的公共配置。</li>
+</ul>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 在插件中通过如下代码获取attribute的公共配置</span></span><br><span class="line"><span class="keyword">local</span> plugin = <span class="built_in">require</span>(<span class="string">&quot;apisix.plugin&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">local</span> attr = plugin.plugin_attr(plugin_name)</span><br><span class="line"><span class="keyword">if</span> attr <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">        redis_host = attr.redis_host,</span><br><span class="line">        redis_port = attr.redis_port,</span><br><span class="line">        redis_password = attr.redis_password,</span><br><span class="line">        redis_database = attr.redis_database</span><br><span class="line">    &#125;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>config</p>
+<p>插件配置在具体对象上的个性化配置，通过启用时的配置字段配置。</p>
+</li>
+</ul>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 在插件中通过如下代码获取个性化配置</span></span><br><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">_M.access</span><span class="params">(conf, ctx)</span></span></span><br><span class="line">    env = conf.env</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="路由"><a href="#路由" class="headerlink" title="路由"></a>路由</h3><p>    Apisix通过Lua代码在内存中构建radixtree来支持路由匹配，相较于传统ingress controller路由维护在nginx.conf文件中，每次路由更新都需要执行nginx的reload，显著减少了reload的次数，对长连接更加友好。</p>
+<p>    目前支持三种路由匹配方式：</p>
+<ul>
+<li><p>radixtree_uri：只使用uri作为主索引，支持精确和前缀匹配。优先精确匹配。</p>
+</li>
+<li><p>radixtree_uri_with_parameter：同radixtree_uri，支持可变参数匹配。</p>
+</li>
+<li><p>radixtree_host_uri：默认使用host+uri作为主索引，支持精确和前缀匹配。优先精确匹配。</p>
+</li>
+</ul>
+<h3 id="服务"><a href="#服务" class="headerlink" title="服务"></a>服务</h3><p>    服务是Apisix中的概念，区别于K8s中的服务，服务与Apisix的上游是一一对应的，与Apisix中的路由是一对N的关系，可以理解为：一个服务对应一个上游服务的一组路由。</p>
+<p><img src="apisix-service.jpg"></p>
+<h3 id="服务发现"><a href="#服务发现" class="headerlink" title="服务发现"></a>服务发现</h3><p>    Apisix除支持在上游服务直接填写域名或者是IP的后端之外，还支持与多种注册中心（consul、nacos、eureka、DNS、K8s、ZK等）对接，可自动发现注册中的后端地址，并填写到Apisix的上游服务中的Node中。</p>
+<p>    这里重点关注K8s服务。主要分为如下步骤：</p>
+<p>（1）在Apisix配置文件的注册中心中填写K8s的连接信息（注意授权service、endpoints等必要的资源）。</p>
+<p>（2）在填写上游服务时，按照如下格式填写：[id]/[namespace]/[name]:[portName]。</p>
+<h1 id="落地方案"><a href="#落地方案" class="headerlink" title="落地方案"></a>落地方案</h1><p>    之前业务采用了一个集中式的Apisix的网关，将所有流量收归到这个单点的网关，然后分发给各个集群的外部流量入口，存在明显缺点：</p>
+<ul>
+<li><p>单点故障，网关压力大，一旦出现问题，整个平台所承载的系统将无法使用。</p>
+</li>
+<li><p>链路长，延时高，跨集群的调用，需要经过网关-&gt;集群X的负载均衡-&gt;应用服务。</p>
+</li>
+</ul>
+<p>    经过考虑后，将网关拆分到各个集群中，每个平台业务根据自身所在的集群，使用当前集群的网关，同时各个网关互为主备，可提供一定的主备容灾能力。</p>
+<p><img src="api7ee3-impl.jpg"></p>
+<blockquote>
+<p>目前网关认证鉴权等插件依赖的Redis，只做了主备，没有进行异地拆分，跨地域调用的架构有优化的空间。 </p>
+</blockquote>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>    网关的建设过程中，调研了许多的技术方案，一直着眼在WASM、Envoy等比较热的技术点，因为认识不足，一直对OpenResty+Lua这组网关方案不太感冒，后续公司采购了API7的产品，通过学习和使用，原有的成见都被一一解答，才认识到这组网关方案的强大-Apisix只依靠Nginx的内核及扩展，使用Lua脚本语言和关系型数据库，构建了一组完整的Restful API（admin API）来管理网关的控制面，并通过Lua脚本在Nginx处理请求的各个阶段插桩执行自定义的代码，扩展Nginx的能力，这使得Apisix在网关方案和API管理领域日渐风靡，炙手可热，敢与一众基于envoy的云原生网关掰手腕。由此可见，无知是原罪，想要选出的技术方案，就必须首先有广阔的技术视野和认知，当下最热的不一定就是最合适的。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Gateway/" rel="tag"># Gateway</a>
+              <a href="/tags/Apisix/" rel="tag"># Apisix</a>
+              <a href="/tags/OpenResty/" rel="tag"># OpenResty</a>
+              <a href="/tags/Lua/" rel="tag"># Lua</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/08/13/%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/" rel="prev" title="运维杂记（一）">
+      <i class="fa fa-chevron-left"></i> 运维杂记（一）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/10/22/Karmada-failover/" rel="next" title="Karmada failover">
+      Karmada failover <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E6%A6%82%E8%A7%88"><span class="nav-number">2.</span> <span class="nav-text">架构概览</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-number">3.</span> <span class="nav-text">基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#LuaJIT"><span class="nav-number">3.1.</span> <span class="nav-text">LuaJIT</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Cosocket"><span class="nav-number">3.2.</span> <span class="nav-text">Cosocket</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Apisix"><span class="nav-number">3.3.</span> <span class="nav-text">Apisix</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%90%AF%E5%8A%A8"><span class="nav-number">3.3.1.</span> <span class="nav-text">启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8F%92%E4%BB%B6"><span class="nav-number">3.3.2.</span> <span class="nav-text">插件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1"><span class="nav-number">3.3.3.</span> <span class="nav-text">路由</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1"><span class="nav-number">3.3.4.</span> <span class="nav-text">服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="nav-number">3.3.5.</span> <span class="nav-text">服务发现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%90%BD%E5%9C%B0%E6%96%B9%E6%A1%88"><span class="nav-number">4.</span> <span class="nav-text">落地方案</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

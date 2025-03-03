@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="背景    Etcd作为分布式的强一致性的键值对配置库，广泛使用在元数据存储、配置存储、分布式锁等领域。其中最具代表性的有：K8s使用Etcd作为唯一的元数据后端存储，Apisix使用Etcd作为配置的后端存储。     本文通过阅读学习极客时间唐聪老师的etcd实战课，加深对Etcd的理解和使用。 内容整理基本原理    Etcd基于Raft算法实现，在Raft的论文中，将分布式系统一致性问题分">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Etcd实战笔记">
+<meta property="og:url" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="背景    Etcd作为分布式的强一致性的键值对配置库，广泛使用在元数据存储、配置存储、分布式锁等领域。其中最具代表性的有：K8s使用Etcd作为唯一的元数据后端存储，Apisix使用Etcd作为配置的后端存储。     本文通过阅读学习极客时间唐聪老师的etcd实战课，加深对Etcd的理解和使用。 内容整理基本原理    Etcd基于Raft算法实现，在Raft的论文中，将分布式系统一致性问题分">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/leader-election.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/raft-log-sync.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/mvcc.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/treeIndex-example.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/mvcc-write.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/watch.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/etcd-write.webp">
+<meta property="og:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/etcd-read.webp">
+<meta property="article:published_time" content="2022-07-04T16:00:00.000Z">
+<meta property="article:modified_time" content="2022-07-04T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Etcd">
+<meta property="article:tag" content="Raft">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/leader-election.webp">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Etcd实战笔记 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2022/07/05/Etcd%E5%AE%9E%E6%88%98%E7%AC%94%E8%AE%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Etcd实战笔记
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-07-05 00:00:00" itemprop="dateCreated datePublished" datetime="2022-07-05T00:00:00+08:00">2022-07-05</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E4%B8%AD%E9%97%B4%E4%BB%B6/" itemprop="url" rel="index"><span itemprop="name">中间件</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h1><p>    Etcd作为分布式的强一致性的键值对配置库，广泛使用在元数据存储、配置存储、分布式锁等领域。其中最具代表性的有：K8s使用Etcd作为唯一的元数据后端存储，Apisix使用Etcd作为配置的后端存储。</p>
+<p>    本文通过阅读学习极客时间唐聪老师的<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/intro/100069901">etcd实战课</a>，加深对Etcd的理解和使用。</p>
+<h1 id="内容整理"><a href="#内容整理" class="headerlink" title="内容整理"></a>内容整理</h1><h2 id="基本原理"><a href="#基本原理" class="headerlink" title="基本原理"></a>基本原理</h2><p>    Etcd基于Raft算法实现，在Raft的论文中，将分布式系统一致性问题分解为三个子问题，分别为Leader选举、日志复制、安全性。以下是Raft论文的中文翻译地址：</p>
+<p>    <a target="_blank" rel="noopener" href="https://github.com/maemual/raft-zh_cn/blob/master/raft-zh_cn.md">中文翻译地址</a></p>
+<h3 id="Leader选举"><a href="#Leader选举" class="headerlink" title="Leader选举"></a>Leader选举</h3><p>    集群角色主要分为：</p>
+<ul>
+<li><p>Leader，集群领导者，可以发起写操作，并同步日志给Follower，并且定时发送心跳维持自己的领导地位。</p>
+</li>
+<li><p>Follwer，同步从Leader接收的日志，可以处理读操作。</p>
+</li>
+<li><p>Candidate，竞选者，这是一个中间状态，可以发起Leader选举。</p>
+</li>
+<li><p>Learner，没有选举和被选举权，只能同步数据。   </p>
+<p>Leader的任期号是单调递增的，可以作为逻辑时钟，可以比较数据的新旧。 节点拒绝给当前数据比自己任期号小的节点投票。     </p>
+<p><img src="leader-election.webp"></p>
+</li>
+</ul>
+<p>    这里有一个Precandidate的状态，是为了防止网络发生分区后，较少节点的分区，不断自增任期号，待网络恢复后，较少节点因自增任期号比较大，但数据远远落后而触发的无效节点选举，影响集群整体的稳定性。</p>
+<h3 id="日志复制"><a href="#日志复制" class="headerlink" title="日志复制"></a>日志复制</h3><p>    Leader复制日志给Follower的核心流程：</p>
+<p><img src="raft-log-sync.webp"></p>
+<p>    ① 客户端发起请求，写入hello=world。</p>
+<p>    ② Etcd首先向Raft模块，提交一个提案。消息类型为MsgProp。</p>
+<p>    ③ Raft模块收到提案后，会生成日志条目，并附加到不稳定的Raft Log（内存）中。</p>
+<p>    ④ Raft模块遍历Follower列表和进度信息，为每个Follower生成日志追加MsgApp消息，通过HTTP协议发送给Follower，并将日志条目<strong>持久化</strong>在WAL中。</p>
+<blockquote>
+<p>Leader通过两个核心字段来维护Follower的进度信息：</p>
+<p>NextIndex：Leader发送给Follower的下一个日志索引</p>
+<p>MatchIndex：Follower已同步的日志索引        </p>
+</blockquote>
+<p>    ⑤ 将日志条目追加到稳定的Raft Log（内存）中。</p>
+<p>    ⑥ Follower收到的消息后，首先进行安全检查，然后<strong>持久化</strong>数据到WAL中，随后回复一个应答追加日志条目（MsgAppResp）的消息，告知Leader当前已经复制到日志的最大索引（MatchIndex）。Leader收到的Follower通告MatchIndex信息后，根据这个信息推算出，半数以上节点已经持久化这条日志后，代表这条日志已经被提交。Leader可以通过心跳信息（MsgHeartbeat）告知Follwer已提交的日志索引。</p>
+<p>    ⑦ 各节点从Raft模块获取到已提交的日志条目。</p>
+<p>    ⑧ 应用日志条目到存储状态机中，结果返回给client。</p>
+<h3 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h3><p>    Etcd基于treeIndex、boltdb（B+tree）实现了存储状态机。支持多版本控制。</p>
+<p><img src="mvcc.webp"></p>
+<h4 id="TreeIndex"><a href="#TreeIndex" class="headerlink" title="TreeIndex"></a>TreeIndex</h4><p>    treeIndex是一颗B-tree，每个节点包含多个数据，支持范围查询。</p>
+<p><img src="treeIndex-example.webp"></p>
+<p>    每个节点的Key的数据结构如下：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> keyIndex <span class="keyword">struct</span> &#123;</span><br><span class="line">    key []<span class="keyword">byte</span>                        <span class="comment">//用户的key名称</span></span><br><span class="line">    modified revision                 <span class="comment">//最后一次修改key时的etcd版本号</span></span><br><span class="line">    generations []generation          <span class="comment">//generation保存了一个key若干代版本号信息，每代中包含对key的多次修改的版本号列表 （不断删除新增会生成多个代）</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> generation <span class="keyword">struct</span> &#123;</span><br><span class="line">    ver <span class="keyword">int64</span>                          <span class="comment">//表示此key的修改次数</span></span><br><span class="line">    created revision                   <span class="comment">//表示generation结构创建时的版本号</span></span><br><span class="line">    revs []revision                    <span class="comment">//每次修改key时的revision追加到此数组</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> revision <span class="keyword">struct</span> &#123;</span><br><span class="line">    main <span class="keyword">int64</span><span class="comment">//一个全局递增的主版本号，随put/txn/delete事务递增，一个事务内的key main版本号是一致的</span></span><br><span class="line">    sub <span class="keyword">int64</span> <span class="comment">//一个事务内的子版本号，从0开始随事务内put/delete操作递增</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>     Etcd进行数据读入时，首先查询treeIndex的版本信息，这些信息在事务中发挥重要的作用，然后自增全局的版本号，生成revision{全局版本号，子版本号}，这是boltdb的key，然后填充mvccpb.KeyValue，这是boltdb的value。</p>
+<p>    先将数据保存到boltdb的缓存中（这是文件系统的缓存，等待异步刷新到磁盘），然后更新数据到buffer（保证能查询到最新的数据）中，最后更新treeIndex的数据。</p>
+<p><img src="mvcc-write.webp"></p>
+<p>    数据读取与此类似，先查询的是buffer，如果未命中，才从boltdb中查询数据。</p>
+<p>    数据删除采用的是延迟删除的方式，通过新增代表删除的标志或数据结构，代表数据已被删除。</p>
+<p>    </p>
+<p>    基于上述MVCC的原理，Etcd支持事务和Watch机制。</p>
+<h4 id="事务"><a href="#事务" class="headerlink" title="事务"></a>事务</h4><p>    Etcd通过事务API来解决多key原子更新的问题，事务API如下格式使用：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">client.Txn(ctx)</span><br><span class="line">.If(cmp1, cmp2, ...)</span><br><span class="line">.Then(op1, op2, ...,)</span><br><span class="line">.Else(op1, op2, …)</span><br></pre></td></tr></table></figure>
+
+<h4 id="Watch机制"><a href="#Watch机制" class="headerlink" title="Watch机制"></a>Watch机制</h4><p>     当一个Watcher监听的版本号已经小于当前etcd Server压缩的版本号，变更的历史数据可能已丢失，etcd Server会返回ErrCompacted错误给客户端。客户端需要重新获取最新的版本好后重新watch。</p>
+<ul>
+<li><p>syncWatcher：最新数据已同步完毕，等待新的变更。</p>
+</li>
+<li><p>unsyncWathcer：努力追赶历史变更。</p>
+</li>
+<li><p>victimWathcer：channel buffer已满，同步缓慢的watccher。</p>
+</li>
+</ul>
+<p>        三者之间随着数据同步的进行，可以转换。</p>
+<p><img src="watch.webp"></p>
+<h3 id="租约"><a href="#租约" class="headerlink" title="租约"></a>租约</h3><p>    Lease与key进行关联，相同TTL的Lease可以使用一个Lease。Leader按照过期时间维护了一个最小堆。主循环每次获取过期的lease，发起Revoke请求，通过Raft Log 传递给Follower节点，删除boltdb中已过期的key、删除Lease和Key的关联，删除Lease。</p>
+<h3 id="压缩"><a href="#压缩" class="headerlink" title="压缩"></a>压缩</h3><p>    为防止Etcd的db不断增长，达到上限8G，需要进行压缩，清除历史数据。压缩分为：</p>
+<ol>
+<li><p>手动压缩，etcdctl compact。</p>
+</li>
+<li><p>自动压缩：</p>
+<ul>
+<li><p>周期压缩，保留时间周期    </p>
+</li>
+<li><p>版本号压缩</p>
+</li>
+</ul>
+</li>
+</ol>
+<p>    压缩操作并不会直接释放磁盘，减小db的大小，而是会将释放的page，记录在空闲页中，等待新的写入请求，复用这个page。</p>
+<h3 id="一次写请求"><a href="#一次写请求" class="headerlink" title="一次写请求"></a>一次写请求</h3><p><img src="etcd-write.webp"></p>
+<p>（1）Client通过负载均衡算法选择一个节点，封装并发送gRPC请求。</p>
+<p>（2）请求通过gRPC拦截器、Quota模块后，交给KV Server后，KV Server会生成一个提案（Propose）提交给Raft模块，随后会等待这个这个提案的返回。</p>
+<p>          如果超时（5 秒磁盘 IO 延时 +2*1 秒竞选超时时间）未返回，会报etcdserver：request time out。</p>
+<p>（3）Raft模块收到提案后，如果是Follower，它会转发给Leader节点。</p>
+<p>          Leader节点收到提案后，Leader将提案消息广播给集群个节点，同时需要将集群Leader任期号、投票信息、已提交索引、提案内容持久化（fsync）到WAL日志文件中，并附建。</p>
+<p>    WAL的记录类型：</p>
+<ul>
+<li><p>文件元数据记录</p>
+</li>
+<li><p>日志条目记录</p>
+</li>
+<li><p>状态信息记录</p>
+</li>
+<li><p>CRC记录</p>
+</li>
+<li><p>快照记录</p>
+</li>
+</ul>
+<p>（4）当一半以上的节点持久化了日志条目后，Raft通过channel告知etcdserver模块，提案状态为已提交，可以异步进行Apply。</p>
+<p>（5）Apply模块通过consistent index来实现日志条目执行的幂等性，Apply判定日志未执行后，交给MVCC进行持久化。</p>
+<p>（6）MVCC通过维护treeindex和boltdb来实现提案的提交，注意这里的只是更新内存中的数据结构，并没有实现真正的事务提交。</p>
+<p>          通过bucket buffer来保存暂未提交的事务数据，解决读不到最新数据的问题。</p>
+<p>（7）事务的提交过程包括B+tree的平衡分裂、合并多个写操作等，通过异步定时批量地fsync刷新数据到磁盘。</p>
+<h3 id="一次读请求"><a href="#一次读请求" class="headerlink" title="一次读请求"></a>一次读请求</h3><p><img src="etcd-read.webp"></p>
+<p>（1）Client通过负载均衡算法选择一个节点，封装gRPC请求给KV Server。</p>
+<p>（2）ETCD会通过拦截器提供metrics、日志、请求行为检查等机制。随后将请求交给KV Server来处理。</p>
+<p>（3）如果是线性一致性（默认），则KV Server首先通过Raft模块到Leader中获取当前最新已提交的日志索引（committed index）。这里leader也需要向Follwer确认自己的Leader身份。</p>
+<p>（4）查询的节点，需要等待直至自身状态机的applied index大于等于Leader的已提交索引（committed index），然后才去MVVC模块获取数据。</p>
+<p>（5）MVVC模块获取数据时，首先查询treeIndex获取版本号，然后在未命中buffer的情况下， 才到boltdb中读取实际存储的数据。</p>
+<p>    以上是线性读的处理流程，如果是序列化一致性，则不需要readIndex机制（上文中(3)(4)的步骤）来保证数据一致性。</p>
+<h2 id="组件运维"><a href="#组件运维" class="headerlink" title="组件运维"></a>组件运维</h2><h3 id="集群发现"><a href="#集群发现" class="headerlink" title="集群发现"></a>集群发现</h3><p>    Etcd集群发现，可以采用如下两种方式：</p>
+<p>    （1）static configuration</p>
+<ul>
+<li><p>initial-cluster-state=new，initial-cluster包含三个节点的信息。</p>
+</li>
+<li><p>initial-cluster-state=new，单个节点独立成集群，然后其它节点为existing，加入到集群中。</p>
+</li>
+</ul>
+<p>（2）dynamic service discovery    </p>
+<p>        通过公共服务来发现集群中的成员信息。</p>
+<h3 id="集群成员变更"><a href="#集群成员变更" class="headerlink" title="集群成员变更"></a>集群成员变更</h3><p>    集群成员在线安全变更的方式为：每次变更一个节点，不要同时变更多个节点。</p>
+<h3 id="监控告警"><a href="#监控告警" class="headerlink" title="监控告警"></a>监控告警</h3><p>    通过Etcd暴露的Metrics指标，监控磁盘、网络、MVCC事务、Etcd Server等信息。</p>
+<h3 id="备份还原"><a href="#备份还原" class="headerlink" title="备份还原"></a>备份还原</h3><p>（1）etcdctl snapshot</p>
+<p>（2）定时备份，etcd-backup-operator</p>
+<p>（3）跨地域热备，learner节点</p>
+<h3 id="巡检"><a href="#巡检" class="headerlink" title="巡检"></a>巡检</h3><h3 id="混沌工程"><a href="#混沌工程" class="headerlink" title="混沌工程"></a>混沌工程</h3><p>    快速复现故障实现问题定位。</p>
+<h3 id="问题分析"><a href="#问题分析" class="headerlink" title="问题分析"></a>问题分析</h3><h4 id="内存"><a href="#内存" class="headerlink" title="内存"></a>内存</h4><p>    Etcd的内存占用：</p>
+<p>（1）raft log</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> raftLog <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">// storage contains all stable entries since the last snapshot.</span></span><br><span class="line">    storage Storage</span><br><span class="line">    <span class="comment">// unstable contains all unstable entries and snapshot.</span></span><br><span class="line">    <span class="comment">// they will be saved into storage.</span></span><br><span class="line">    unstable unstable</span><br><span class="line">    <span class="comment">// committed is the highest log position that is known to be in</span></span><br><span class="line">    <span class="comment">// stable storage on a quorum of nodes.</span></span><br><span class="line">    committed <span class="keyword">uint64</span></span><br><span class="line">    <span class="comment">// applied is the highest log position that the application has</span></span><br><span class="line">    <span class="comment">// been instructed to apply to its state machine.</span></span><br><span class="line">    <span class="comment">// Invariant: applied &lt;= committed</span></span><br><span class="line">    applied <span class="keyword">uint64</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>（2）treeIndex  </p>
+<p>（3）boltdb</p>
+<p>    通过 mmap将db文件预读取到内存中。</p>
+<p>（4）watcher</p>
+<ul>
+<li><p>连接</p>
+</li>
+<li><p>Stream</p>
+</li>
+<li><p>watcher。</p>
+</li>
+</ul>
+<p>（5）expensive request</p>
+<h4 id="延时"><a href="#延时" class="headerlink" title="延时"></a>延时</h4><p>    对于网络或者是磁盘的延时，可以通过接入监控，分析etcd暴露的指标来得出结论，也可以开启trace日志。</p>
+<p>    expensive request、容量瓶颈、节点配置。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Etcd/" rel="tag"># Etcd</a>
+              <a href="/tags/Raft/" rel="tag"># Raft</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/06/21/Linux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/" rel="prev" title="Linux运维常用命令">
+      <i class="fa fa-chevron-left"></i> Linux运维常用命令
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/19/Linux%20Kernel-%E7%BD%91%E7%BB%9C%E6%94%B6%E5%8F%91%E5%8C%85/" rel="next" title="Linux Kernel-网络收发包">
+      Linux Kernel-网络收发包 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%86%85%E5%AE%B9%E6%95%B4%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">内容整理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86"><span class="nav-number">2.1.</span> <span class="nav-text">基本原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Leader%E9%80%89%E4%B8%BE"><span class="nav-number">2.1.1.</span> <span class="nav-text">Leader选举</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6"><span class="nav-number">2.1.2.</span> <span class="nav-text">日志复制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MVCC"><span class="nav-number">2.1.3.</span> <span class="nav-text">MVCC</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#TreeIndex"><span class="nav-number">2.1.3.1.</span> <span class="nav-text">TreeIndex</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BA%8B%E5%8A%A1"><span class="nav-number">2.1.3.2.</span> <span class="nav-text">事务</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Watch%E6%9C%BA%E5%88%B6"><span class="nav-number">2.1.3.3.</span> <span class="nav-text">Watch机制</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A7%9F%E7%BA%A6"><span class="nav-number">2.1.4.</span> <span class="nav-text">租约</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8E%8B%E7%BC%A9"><span class="nav-number">2.1.5.</span> <span class="nav-text">压缩</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E6%AC%A1%E5%86%99%E8%AF%B7%E6%B1%82"><span class="nav-number">2.1.6.</span> <span class="nav-text">一次写请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E6%AC%A1%E8%AF%BB%E8%AF%B7%E6%B1%82"><span class="nav-number">2.1.7.</span> <span class="nav-text">一次读请求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BB%84%E4%BB%B6%E8%BF%90%E7%BB%B4"><span class="nav-number">2.2.</span> <span class="nav-text">组件运维</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E5%8F%91%E7%8E%B0"><span class="nav-number">2.2.1.</span> <span class="nav-text">集群发现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9B%86%E7%BE%A4%E6%88%90%E5%91%98%E5%8F%98%E6%9B%B4"><span class="nav-number">2.2.2.</span> <span class="nav-text">集群成员变更</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7%E5%91%8A%E8%AD%A6"><span class="nav-number">2.2.3.</span> <span class="nav-text">监控告警</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%87%E4%BB%BD%E8%BF%98%E5%8E%9F"><span class="nav-number">2.2.4.</span> <span class="nav-text">备份还原</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B7%A1%E6%A3%80"><span class="nav-number">2.2.5.</span> <span class="nav-text">巡检</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B7%B7%E6%B2%8C%E5%B7%A5%E7%A8%8B"><span class="nav-number">2.2.6.</span> <span class="nav-text">混沌工程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E5%88%86%E6%9E%90"><span class="nav-number">2.2.7.</span> <span class="nav-text">问题分析</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%86%85%E5%AD%98"><span class="nav-number">2.2.7.1.</span> <span class="nav-text">内存</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BB%B6%E6%97%B6"><span class="nav-number">2.2.7.2.</span> <span class="nav-text">延时</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

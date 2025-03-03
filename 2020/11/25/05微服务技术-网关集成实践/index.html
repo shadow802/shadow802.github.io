@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="​    根据系统架构设计图，需要对服务网关进行集成，满足动态路由配置、认证鉴权、容错限流规则动态加载、负载均衡等要求，如图红色部分。  ​    现基于Spring-Cloud-Gateway进行相关功能的集成、技术验证 动态配置​    根据上述架构图，数据服务发布后，需要通过Rest API在Nacos上修改配置，及时生效的功能主要有： ​        （1）网关的路由配置文件，在网关上追">
+<meta property="og:type" content="article">
+<meta property="og:title" content="微服务技术-网关集成实践">
+<meta property="og:url" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="​    根据系统架构设计图，需要对服务网关进行集成，满足动态路由配置、认证鉴权、容错限流规则动态加载、负载均衡等要求，如图红色部分。  ​    现基于Spring-Cloud-Gateway进行相关功能的集成、技术验证 动态配置​    根据上述架构图，数据服务发布后，需要通过Rest API在Nacos上修改配置，及时生效的功能主要有： ​        （1）网关的路由配置文件，在网关上追">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/Data-Service-Gateway.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/config-create.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/config-create-result.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/config-query.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/gateway-route-query.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/sentinel-rule-nacos.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/service-block.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/sentinel-rule-modify.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-password-token.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-password-visit.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-code-approval.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-code-redirect.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-code-token-1.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-code-token-2.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-client-token.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-implicit-approval.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/oauth-security-jwt/oauth-implicit-token.jpg">
+<meta property="article:published_time" content="2020-11-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2020-11-24T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Gateway">
+<meta property="article:tag" content="Oauth2">
+<meta property="article:tag" content="Nacos">
+<meta property="article:tag" content="Sentinel">
+<meta property="article:tag" content="Spring Security">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/Data-Service-Gateway.jpg">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>微服务技术-网关集成实践 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2020/11/25/05%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E7%BD%91%E5%85%B3%E9%9B%86%E6%88%90%E5%AE%9E%E8%B7%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          微服务技术-网关集成实践
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-11-25 00:00:00" itemprop="dateCreated datePublished" datetime="2020-11-25T00:00:00+08:00">2020-11-25</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" itemprop="url" rel="index"><span itemprop="name">微服务</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​    根据系统架构设计图，需要对服务网关进行集成，满足动态路由配置、认证鉴权、容错限流规则动态加载、负载均衡等要求，如图红色部分。</p>
+<p><img src="Data-Service-Gateway.jpg" alt="Data-Service-Gateway"></p>
+<p>​    现基于Spring-Cloud-Gateway进行相关功能的集成、技术验证</p>
+<h1 id="动态配置"><a href="#动态配置" class="headerlink" title="动态配置"></a>动态配置</h1><p>​    根据上述架构图，数据服务发布后，需要通过Rest API在Nacos上修改配置，及时生效的功能主要有：</p>
+<p>​        （1）网关的路由配置文件，在网关上追加到服务的路由配置</p>
+<p>​        （2）容错限流Sentinel的阈值设定，后期运维可能需要动态调整</p>
+<h2 id="Nacos-Rest-API"><a href="#Nacos-Rest-API" class="headerlink" title="Nacos Rest API"></a>Nacos Rest API</h2><p>​    </p>
+<p>​    <a target="_blank" rel="noopener" href="https://nacos.io/zh-cn/docs/open-api.html">官方API说明</a></p>
+<h3 id="配置文件创建-修改"><a href="#配置文件创建-修改" class="headerlink" title="配置文件创建/修改"></a>配置文件创建/修改</h3><figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">http://10.6.6.208:8848/nacos/v1/cs/configs</span><br></pre></td></tr></table></figure>
+
+<p><img src="config-create.jpg" alt="config-create" style="zoom:50%;" />                               <img src="config-create-result.jpg" alt="config-create-result" style="zoom:50%;" /> </p>
+<h3 id="配置文件查询"><a href="#配置文件查询" class="headerlink" title="配置文件查询"></a>配置文件查询</h3><figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">http://10.6.6.208:8848/nacos/v1/cs/configs?dataId=gateway-routes.yml&amp;group=DEFAULT_GROUP</span><br></pre></td></tr></table></figure>
+
+<img src="config-query.jpg" alt="config-query"  />
+
+
+
+<h2 id="Gateway-动态刷新"><a href="#Gateway-动态刷新" class="headerlink" title="Gateway 动态刷新"></a>Gateway 动态刷新</h2><p>​    Spring Cloud Gateway + Actuator可以暴露网关中配置的路由规则，需要搭配的配置如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">management.endpoints.web.exposure.include&#x3D;gateway</span><br><span class="line">management.endpoint.gateway.enabled&#x3D;true</span><br><span class="line"></span><br><span class="line">通过如下地址可以查看</span><br><span class="line">http:&#x2F;&#x2F;10.6.3.39:18080&#x2F;actuator&#x2F;gateway&#x2F;routes</span><br></pre></td></tr></table></figure>
+
+<img src="gateway-route-query.jpg" alt="gateway-route-query"  />
+
+
+
+<p>​    配合1.1.1中配置文件的Rest API可以实现动态路由。例如下图配置了使用负载均衡并使用path的断言：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spring:</span></span><br><span class="line">  <span class="attr">cloud:</span></span><br><span class="line">    <span class="attr">gateway:</span></span><br><span class="line">      <span class="attr">routes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">id:</span> <span class="string">path_route1</span></span><br><span class="line">        <span class="attr">uri:</span> <span class="string">lb://demo-http-service:8888</span></span><br><span class="line">        <span class="attr">predicates:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">Path=/demo</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">id:</span> <span class="string">path_route2</span></span><br><span class="line">        <span class="attr">uri:</span> <span class="string">lb://demo-http-service:8888</span></span><br><span class="line">        <span class="attr">predicates:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">Path=/home</span>  </span><br></pre></td></tr></table></figure>
+
+
+
+<p>​    只需要对这样一段字符串进行增删改的维护，应用就可以自行读取动态配置，如果使用JSON的配置文件格式，虽然更易于维护，但是因为应用只能使用properties或者是yml的配置文件，需要自己集成网关中的路由的增删改处理，Spring Cloud Gateway已也有相关支持的接口类。</p>
+<h2 id="Sentinel客户端使用Nacos-Datasource"><a href="#Sentinel客户端使用Nacos-Datasource" class="headerlink" title="Sentinel客户端使用Nacos Datasource"></a>Sentinel客户端使用Nacos Datasource</h2><p>​    <a target="_blank" rel="noopener" href="https://github.com/alibaba/Sentinel/wiki/%E7%BD%91%E5%85%B3%E9%99%90%E6%B5%81">Gateway整合Sentinel文档</a></p>
+<p>​    <a target="_blank" rel="noopener" href="https://github.com/alibaba/Sentinel/tree/master/sentinel-demo/sentinel-demo-nacos-datasource">Nacos Datasource Demo</a></p>
+<p>​    要实现数据服务的动态容错限流，根据Sentinel官方的描述，推荐使用的方式是，将容错限流的规则推送到Nacos（可使用1.1中的Nacos Rest API），然后在Sentinel的客户端，集成Nacos的数据源，动态在内存中更新并使用这些规则。</p>
+<h3 id="推送JSON格式的规则"><a href="#推送JSON格式的规则" class="headerlink" title="推送JSON格式的规则"></a>推送JSON格式的规则</h3><p>​    使用Postman推送JSON格式的Sentinel限流规则，这里仅仅设置了限流为1，使用Gateway中配置的route_id作为resource，更加复杂的规则设定可以通过抓取Sentinel dashboard的数据格式或者参照官网进行：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[&#123;<span class="attr">&quot;resource&quot;</span>: <span class="string">&quot;path_route1&quot;</span>,<span class="attr">&quot;controlBehavior&quot;</span>: <span class="number">0</span>,<span class="attr">&quot;count&quot;</span>: <span class="number">1</span>,<span class="attr">&quot;grade&quot;</span>: <span class="number">1</span>,<span class="attr">&quot;limitApp&quot;</span>: <span class="string">&quot;default&quot;</span>,<span class="attr">&quot;strategy&quot;</span>: <span class="number">0</span>&#125;]</span><br></pre></td></tr></table></figure>
+
+<img src="sentinel-rule-nacos.jpg" alt="sentinel-rule-nacos" style="zoom: 80%;" />
+
+
+
+<h3 id="网关使用Nacos-Datasource"><a href="#网关使用Nacos-Datasource" class="headerlink" title="网关使用Nacos Datasource"></a>网关使用Nacos Datasource</h3><p>​    在网关上需要设置Sentinel的filter，并为Sentinel注册Nacos的规则数据源</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">initNacosDatasource</span><span class="params">()</span></span>&#123;</span><br><span class="line">    String remoteAddress = <span class="string">&quot;10.6.6.208&quot;</span>;</span><br><span class="line">    String groupId = <span class="string">&quot;DEFAULT_GROUP&quot;</span>;</span><br><span class="line">    String dataId = <span class="string">&quot;gateway_sentinel_rule&quot;</span>;</span><br><span class="line">    <span class="comment">/** 效果一样</span></span><br><span class="line"><span class="comment">    ReadableDataSource&lt;String, List&lt;FlowRule&gt;&gt; flowRuleDataSource = new NacosDataSource&lt;&gt;(remoteAddress, groupId, dataId,</span></span><br><span class="line"><span class="comment">    	source -&gt; JSON.parseObject(source, new TypeReference&lt;List&lt;FlowRule&gt;&gt;() &#123;</span></span><br><span class="line"><span class="comment">    &#125;));</span></span><br><span class="line"><span class="comment">    FlowRuleManager.register2Property(flowRuleDataSource.getProperty());</span></span><br><span class="line"><span class="comment">    */</span></span><br><span class="line">    ReadableDataSource&lt;String, Set&lt;GatewayFlowRule&gt;&gt; flowRuleDataSource = <span class="keyword">new</span> NacosDataSource&lt;&gt;(remoteAddress, groupId, dataId,</span><br><span class="line">    	source -&gt; JSON.parseObject(source, <span class="keyword">new</span> TypeReference&lt;Set&lt;GatewayFlowRule&gt;&gt;() &#123;</span><br><span class="line">    &#125;));</span><br><span class="line">    GatewayRuleManager.register2Property(flowRuleDataSource.getProperty());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    启动服务之后，使用Postman推送规则，发现对应的服务被容错限流保护，修改限流数量为10，服务被放过部分后，继续熔断。</p>
+<p><img src="service-block.jpg" alt="service-block">                        <img src="sentinel-rule-modify.jpg" alt="sentinel-rule-modify" style="zoom:50%;" /></p>
+<p>​    <strong>（1）这里有一点跟之前理解的不一样，将Sentinel的规则数据源换成Nacos后，dashboard失效。</strong></p>
+<p>​    <strong>（2）可以在 GatewayCallbackManager 注册回调进行定制</strong></p>
+<p>​                <strong>setBlockHandler：注册函数用于实现自定义的逻辑处理被限流的请求，对应接口为 BlockRequestHandler</strong></p>
+<p>​                <strong>默认实现为 DefaultBlockRequestHandler，当被限流时会返回类似于下面的错误信息：Blocked by Sentinel: FlowException</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">GatewayCallbackManager.setBlockHandler(<span class="keyword">new</span> BlockRequestHandler() &#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Mono&lt;ServerResponse&gt; <span class="title">handleRequest</span><span class="params">(ServerWebExchange serverWebExchange, Throwable throwable)</span> </span>&#123;</span><br><span class="line">    	<span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+
+
+<h1 id="认证鉴权"><a href="#认证鉴权" class="headerlink" title="认证鉴权"></a>认证鉴权</h1><p>​    通常情况下，需要在网关上进行统一认证，而选在在网关上或者是子服务中鉴权，这里我们将鉴权交给子服务。</p>
+<p><img src="oauth-security-jwt.jpg" alt="oauth-security-jwt"></p>
+<p>​    按照上述架构图设计，需要在各服务中集成oauth2 + Spring Security + JWT，主要分成三个部分：</p>
+<h2 id="认证服务"><a href="#认证服务" class="headerlink" title="认证服务"></a>认证服务</h2><p>​    认证服务器，负责获取用户信息（包括基本信息、角色、功能权限等），生成JWT token。认证服务器支持四种模式：</p>
+<h3 id="密码模式"><a href="#密码模式" class="headerlink" title="密码模式"></a>密码模式</h3><p>​    （1）首先客户端使用客户端凭证、用户名密码到授权服务器上换取token</p>
+<img src="oauth-security-jwt/oauth-password-token.jpg" alt="oauth-security-jwt-password" style="zoom: 50%;" />
+
+<p>​    （2）使用换取的token到网关上访问具体的资源服务</p>
+<img src="oauth-security-jwt/oauth-password-visit.jpg" alt="oauth-security-jwt-password-visit" style="zoom: 80%;" />
+
+<h3 id="授权码模式"><a href="#授权码模式" class="headerlink" title="授权码模式"></a>授权码模式</h3><p>​    （1）首先访问认证服务器，如果是第一次，会要求输入用户名密码。认证通过后，需要选择是否授权（如果在认证服务器设置.autoApprove(true)可跳过手动授权这步）。</p>
+<p><img src="oauth-security-jwt/oauth-code-approval.jpg" alt="oauth-code-approval"></p>
+<p>​    （2）授权码模式需要在授权服务器上配置一个回调地址（资源服务的地址），授权通过后，授权码通过这个地址回传。</p>
+<p><img src="oauth-security-jwt/oauth-code-redirect.jpg" alt="oauth-code-redirect"></p>
+<p>​    （3）网关需要使用这个授权码到认证服务上换取jwt token，并且缓存这个token。</p>
+<p><img src="oauth-security-jwt/oauth-code-token-1.jpg" alt="oauth-code-token-1" style="zoom: 25%;" />                            <img src="oauth-security-jwt/oauth-code-token-2.jpg" alt="oauth-code-token-2" style="zoom: 33%;" /></p>
+<p>​    （4）客户端使用code访问网关，网关找出对应的jwt token，认证并使用其中的信息进行鉴权，决定是否可以访问对应的资源。</p>
+<h3 id="客户端模式"><a href="#客户端模式" class="headerlink" title="客户端模式"></a>客户端模式</h3><p>​    （1）客户端使用客户端凭证到认证服务器上获取token</p>
+<p><img src="oauth-security-jwt/oauth-client-token.jpg" alt="oauth-client-token"></p>
+<p>​    （2）使用上述获得的token，可以正常访问网关服务提供的资源。</p>
+<h3 id="简易模式"><a href="#简易模式" class="headerlink" title="简易模式"></a>简易模式</h3><p>​    （1）相较于授权码模式，省去返回授权码的步骤，如果第一次登录需要输入用户名密码，并且选择是否授权（如果在认证服务器设置.autoApprove(true)可跳过手动授权这步），如果选择授权，直接返回token</p>
+<img src="oauth-security-jwt/oauth-implicit-approval.jpg" alt="oauth-implicit-approval"  />
+
+<img src="oauth-security-jwt/oauth-implicit-token.jpg" alt="oauth-implicit-token"  />
+
+
+
+<p>​    （2）使用上述获得的token，可以正常访问网关服务提供的资源。</p>
+<h2 id="网关服务"><a href="#网关服务" class="headerlink" title="网关服务"></a>网关服务</h2><p>​    网关作为一种特殊的资源服务，本身虽然不提供资源，但是作为资源的统一访问转发服务，需要在其上集成认证（用户认证+接口认证）。</p>
+<h3 id="用户认证"><a href="#用户认证" class="headerlink" title="用户认证"></a>用户认证</h3><p>​    使用授权码模式，并设定.autoApprove(true)跳过手动授权。</p>
+<h3 id="接口认证"><a href="#接口认证" class="headerlink" title="接口认证"></a>接口认证</h3><p>​    使用客户端模式，认证服务后端接jdbc存储，动态生成客户端模式的客户凭证。可以通过代理获取token，将token返回给用户，用户使用token来访问具体的服务。</p>
+<h2 id="资源服务"><a href="#资源服务" class="headerlink" title="资源服务"></a>资源服务</h2><p>​    各子服务，负责自身的鉴权（用户鉴权+接口鉴权）。</p>
+<h3 id="用户鉴权"><a href="#用户鉴权" class="headerlink" title="用户鉴权"></a>用户鉴权</h3><p>​    系统的功能菜单、url权限存放在数据库中，子服务获取http header中的用户权限，比对即可进行相应的权限控制。</p>
+<h3 id="接口鉴权"><a href="#接口鉴权" class="headerlink" title="接口鉴权"></a>接口鉴权</h3><p>​    子服务的url权限，存放在数据库中，用户可以通过UI动态调整url的权限信息，http header中存有客户端凭证信息，可据此进行权限控制。</p>
+<h3 id="数据权限"><a href="#数据权限" class="headerlink" title="数据权限"></a>数据权限</h3><p>​    需要在子服务中根据组织机构、数据属主进行数据权限的过滤。</p>
+<h2 id="核心代码"><a href="#核心代码" class="headerlink" title="核心代码"></a>核心代码</h2><h3 id="认证服务-1"><a href="#认证服务-1" class="headerlink" title="认证服务"></a>认证服务</h3><p>​    （1）Oauth2 Server</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@AllArgsConstructor</span></span><br><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@EnableAuthorizationServer</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OAuth2ServerConfig</span> <span class="keyword">extends</span> <span class="title">AuthorizationServerConfigurerAdapter</span></span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> PasswordEncoder passwordEncoder;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> SecurityUserService userDetailsService;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> AuthenticationManager authenticationManager;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> JwtTokenEnhancer jwtTokenEnhancer;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(ClientDetailsServiceConfigurer clients)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="comment">//可配合接后端存储 可以自动授权</span></span><br><span class="line">        clients.inMemory()</span><br><span class="line">                .withClient(<span class="string">&quot;client-app&quot;</span>)</span><br><span class="line">                .secret(passwordEncoder.encode(<span class="string">&quot;123456&quot;</span>))</span><br><span class="line">                .scopes(<span class="string">&quot;all&quot;</span>)</span><br><span class="line">                .authorizedGrantTypes(<span class="string">&quot;password&quot;</span>, <span class="string">&quot;refresh_token&quot;</span>, <span class="string">&quot;client_credentials&quot;</span>, <span class="string">&quot;authorization_code&quot;</span>, <span class="string">&quot;implicit&quot;</span>)</span><br><span class="line">                .accessTokenValiditySeconds(<span class="number">3600</span>)</span><br><span class="line">                .refreshTokenValiditySeconds(<span class="number">86400</span>)</span><br><span class="line">            	<span class="comment">//授权模式的回调地址	</span></span><br><span class="line">                .redirectUris(<span class="string">&quot;http://10.6.3.39:18080/callback&quot;</span>)</span><br><span class="line">                <span class="comment">//自动授权</span></span><br><span class="line">                .autoApprove(<span class="keyword">true</span>);</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(AuthorizationServerEndpointsConfigurer endpoints)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        TokenEnhancerChain enhancerChain = <span class="keyword">new</span> TokenEnhancerChain();</span><br><span class="line">        List&lt;TokenEnhancer&gt; delegates = <span class="keyword">new</span> ArrayList&lt;&gt;();</span><br><span class="line">        delegates.add(jwtTokenEnhancer);</span><br><span class="line">        delegates.add(accessTokenConverter());</span><br><span class="line">        enhancerChain.setTokenEnhancers(delegates); <span class="comment">//配置JWT的内容增强器</span></span><br><span class="line">        endpoints.authenticationManager(authenticationManager)</span><br><span class="line">                .userDetailsService(userDetailsService) <span class="comment">//配置加载用户信息的服务</span></span><br><span class="line">                .accessTokenConverter(accessTokenConverter())</span><br><span class="line">                .tokenEnhancer(enhancerChain);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(AuthorizationServerSecurityConfigurer security)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="comment">//开启/oauth/token_key验证端口认证权限访问</span></span><br><span class="line">        <span class="comment">//开启/oauth/check_token验证端口认证权限访问</span></span><br><span class="line">        <span class="comment">//允许表单认证</span></span><br><span class="line">        security.tokenKeyAccess(<span class="string">&quot;isAuthenticated()&quot;</span>).checkTokenAccess(<span class="string">&quot;isAuthenticated()&quot;</span>).allowFormAuthenticationForClients();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> JwtAccessTokenConverter <span class="title">accessTokenConverter</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        JwtAccessTokenConverter jwtAccessTokenConverter = <span class="keyword">new</span> JwtAccessTokenConverter();</span><br><span class="line">        jwtAccessTokenConverter.setKeyPair(keyPair());</span><br><span class="line">        <span class="keyword">return</span> jwtAccessTokenConverter;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> KeyPair <span class="title">keyPair</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">//从classpath下的证书中获取秘钥对</span></span><br><span class="line">        KeyStoreKeyFactory keyStoreKeyFactory = <span class="keyword">new</span> KeyStoreKeyFactory(<span class="keyword">new</span> ClassPathResource(<span class="string">&quot;jwt.jks&quot;</span>), <span class="string">&quot;123456&quot;</span>.toCharArray());</span><br><span class="line">        <span class="keyword">return</span> keyStoreKeyFactory.getKeyPair(<span class="string">&quot;jwt&quot;</span>, <span class="string">&quot;123456&quot;</span>.toCharArray());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>秘钥对生成：keytool -genkey -alias jwt -keyalg RSA -keypass 123456 -keystore jwt.jks -storepass 123456</strong></p>
+<p><strong>-genkey 生成密钥 -alias 别名 -keyalg 密钥算法 -keypass 密钥口令 -keystore 生成密钥库的存储路径和名称 -storepass 密钥库口令</strong></p>
+<p>​    （2）Spring Security</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@EnableWebSecurity</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">SecurityConfiguration</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line"></span><br><span class="line">        <span class="comment">//使用内存的方式，可以换成其他方式，例如数据存储</span></span><br><span class="line">        auth.inMemoryAuthentication()</span><br><span class="line">                .passwordEncoder(passwordEncoder())</span><br><span class="line">                .withUser(<span class="string">&quot;shadow&quot;</span>).password(passwordEncoder().encode(<span class="string">&quot;123456&quot;</span>)).authorities(<span class="string">&quot;USER&quot;</span>)</span><br><span class="line">                .and()</span><br><span class="line">                .withUser(<span class="string">&quot;sugon&quot;</span>).password(passwordEncoder().encode(<span class="string">&quot;123456&quot;</span>)).authorities(<span class="string">&quot;USER&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="comment">// @formatter:off</span></span><br><span class="line">        http.authorizeRequests()</span><br><span class="line">                .requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()</span><br><span class="line">                .antMatchers(<span class="string">&quot;/rsa/publicKey&quot;</span>, <span class="string">&quot;/oauth/**&quot;</span>, <span class="string">&quot;/actuator/**&quot;</span>).permitAll()</span><br><span class="line">                .anyRequest().authenticated()</span><br><span class="line">                .and()</span><br><span class="line">                .httpBasic() <span class="comment">//  Basic登录  （授权码）</span></span><br><span class="line">                .and()</span><br><span class="line">                .csrf().disable(); <span class="comment">//关跨域保护;</span></span><br><span class="line">        <span class="comment">// @formatter:on</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> AuthenticationManager <span class="title">authenticationManagerBean</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">super</span>.authenticationManagerBean();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> PasswordEncoder <span class="title">passwordEncoder</span><span class="params">()</span></span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> BCryptPasswordEncoder();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="服务网关"><a href="#服务网关" class="headerlink" title="服务网关"></a>服务网关</h3><p>​    （1）Spring Security</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@EnableWebFluxSecurity</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GatewayResourceServer</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> AuthorizationManager authorizationManager;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> SecurityWebFilterChain <span class="title">securityWebFilterChain</span><span class="params">(ServerHttpSecurity http)</span> </span>&#123;</span><br><span class="line">        http.oauth2ResourceServer().jwt().jwtAuthenticationConverter(jwtAuthenticationConverter());</span><br><span class="line">        <span class="comment">// 自定义处理JWT请求头过期或签名错误的结果</span></span><br><span class="line">        <span class="comment">//http.oauth2ResourceServer().authenticationEntryPoint(customServerAuthenticationEntryPoint);</span></span><br><span class="line"></span><br><span class="line">        http.authorizeExchange()</span><br><span class="line">                <span class="comment">//.pathMatchers(ArrayUtil.toArray(whiteListConfig.getUrls(),String.class)).permitAll()</span></span><br><span class="line">                .pathMatchers(<span class="string">&quot;/actuator/**&quot;</span>).permitAll()</span><br><span class="line">                .anyExchange().access(authorizationManager)</span><br><span class="line">                .and()</span><br><span class="line">                .exceptionHandling()</span><br><span class="line">                <span class="comment">//.accessDeniedHandler(customServerAccessDeniedHandler) // 处理未授权</span></span><br><span class="line">                <span class="comment">//.authenticationEntryPoint(customServerAuthenticationEntryPoint) //处理未认证</span></span><br><span class="line">                .and().csrf().disable();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> http.build();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@linkhttps</span>://blog.csdn.net/qq_24230139/article/details/105091273</span></span><br><span class="line"><span class="comment">     * ServerHttpSecurity没有将jwt中authorities的负载部分当做Authentication</span></span><br><span class="line"><span class="comment">     * 需要把jwt的Claim中的authorities加入</span></span><br><span class="line"><span class="comment">     * 方案：重新定义ReactiveAuthenticationManager权限管理器，默认转换器JwtGrantedAuthoritiesConverter</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="keyword">public</span> Converter&lt;Jwt, ? extends Mono&lt;? extends AbstractAuthenticationToken&gt;&gt; jwtAuthenticationConverter() &#123;</span><br><span class="line">        JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = <span class="keyword">new</span> JwtGrantedAuthoritiesConverter();</span><br><span class="line">        jwtGrantedAuthoritiesConverter.setAuthorityPrefix(AuthConstant.AUTHORITY_PREFIX);</span><br><span class="line">        jwtGrantedAuthoritiesConverter.setAuthoritiesClaimName(AuthConstant.AUTHORITY_CLAIM_NAME);</span><br><span class="line"></span><br><span class="line">        JwtAuthenticationConverter jwtAuthenticationConverter = <span class="keyword">new</span> JwtAuthenticationConverter();</span><br><span class="line">        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> ReactiveJwtAuthenticationConverterAdapter(jwtAuthenticationConverter);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    （2）鉴权实现类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthorizationManager</span> <span class="keyword">implements</span> <span class="title">ReactiveAuthorizationManager</span>&lt;<span class="title">AuthorizationContext</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Mono&lt;AuthorizationDecision&gt; <span class="title">check</span><span class="params">(Mono&lt;Authentication&gt; mono, AuthorizationContext authorizationContext)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">        URI uri = authorizationContext.getExchange().getRequest().getURI();</span><br><span class="line">        System.out.printf(<span class="string">&quot;uri: &quot;</span> + uri.toString());</span><br><span class="line">        <span class="comment">//这里可以从数据库或其他存储设备中加载当前url对应的权限，然后进行鉴权，目前我们在网关中不鉴权</span></span><br><span class="line">        List&lt;String&gt; authorities = <span class="keyword">new</span> ArrayList&lt;&gt;();</span><br><span class="line">        authorities.add(AuthConstant.AUTHORITY_PREFIX + <span class="string">&quot;USER&quot;</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//认证通过且角色匹配的用户可访问当前路径</span></span><br><span class="line">        <span class="comment">/** 客户端模式没有角色</span></span><br><span class="line"><span class="comment">        return mono.filter(Authentication::isAuthenticated)</span></span><br><span class="line"><span class="comment">                .flatMapIterable(Authentication::getAuthorities)</span></span><br><span class="line"><span class="comment">                .map(GrantedAuthority::getAuthority)</span></span><br><span class="line"><span class="comment">                .any(authorities::contains)</span></span><br><span class="line"><span class="comment">                .map(AuthorizationDecision::new)</span></span><br><span class="line"><span class="comment">                .defaultIfEmpty(new AuthorizationDecision(false));*/</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> mono.just(<span class="keyword">new</span> AuthorizationDecision(<span class="keyword">true</span>));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="资源服务-1"><a href="#资源服务-1" class="headerlink" title="资源服务"></a>资源服务</h3><p>​    （1）使用普通的filter，比对请求中用户权限信息和缓存中url的权限数据即可。</p>
+<p>​    （2）作为资源服务，接入oauth2认证服务器。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@EnableResourceServer</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ResourceServerConfiguration</span> <span class="keyword">extends</span> <span class="title">ResourceServerConfigurerAdapter</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> AuthorizationManager authorizationManager;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="comment">// @formatter:off</span></span><br><span class="line">        http</span><br><span class="line">            <span class="comment">// Since we want the protected resources to be accessible in the UI as well we need</span></span><br><span class="line">            <span class="comment">// session creation to be allowed (it&#x27;s disabled by default in 2.0.6)</span></span><br><span class="line">            .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)</span><br><span class="line">            .and()</span><br><span class="line">            .requestMatchers().anyRequest()</span><br><span class="line">            .and()</span><br><span class="line">            .anonymous()</span><br><span class="line">            .and()</span><br><span class="line">            .authorizeRequests()</span><br><span class="line">                    <span class="comment">//.antMatchers(&quot;/product/**&quot;).access(&quot;#oauth2.hasScope(&#x27;select&#x27;) and hasRole(&#x27;ROLE_USER&#x27;)&quot;)</span></span><br><span class="line">            .antMatchers(<span class="string">&quot;/**&quot;</span>)</span><br><span class="line">                .authenticated() ;  <span class="comment">//配置resource访问控制，必须认证过后才可以访问</span></span><br><span class="line">        <span class="comment">// @formatter:on</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(ResourceServerSecurityConfigurer resources)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        resources.tokenStore(tokenStore());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> TokenStore <span class="title">tokenStore</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> JwtTokenStore(accessTokenConverter());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> JwtAccessTokenConverter <span class="title">accessTokenConverter</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        JwtAccessTokenConverter jwtAccessTokenConverter = <span class="keyword">new</span> JwtAccessTokenConverter();</span><br><span class="line">        jwtAccessTokenConverter.setKeyPair(keyPair());</span><br><span class="line">        <span class="keyword">return</span> jwtAccessTokenConverter;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> KeyPair <span class="title">keyPair</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">//从classpath下的证书中获取秘钥对</span></span><br><span class="line">        KeyStoreKeyFactory keyStoreKeyFactory = <span class="keyword">new</span> KeyStoreKeyFactory(<span class="keyword">new</span> ClassPathResource(<span class="string">&quot;jwt.jks&quot;</span>), <span class="string">&quot;123456&quot;</span>.toCharArray());</span><br><span class="line">        <span class="keyword">return</span> keyStoreKeyFactory.getKeyPair(<span class="string">&quot;jwt&quot;</span>, <span class="string">&quot;123456&quot;</span>.toCharArray());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    （3）如果需要使用注解进行权限控制</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@EnableGlobalMethodSecurity(prePostEnabled = true)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">SecurityConfig</span> <span class="keyword">extends</span> <span class="title">GlobalMethodSecurityConfiguration</span> </span>&#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@GetMapping(&quot;/demo&quot;)</span></span><br><span class="line">@PreAuthorize(&quot;hasAuthority(&#x27;USER&#x27;)&quot;)                               #更复杂的语法，具体使用查阅</span><br><span class="line"><span class="function">String <span class="title">demo</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="string">&quot;demo success @ &quot;</span> + LoginUserHolder.getCurrentUser();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    <strong>Spring Security默认是禁用注解的，要想开启注解，需要在继承WebSecurityConfigurerAdapter的类上加@EnableGlobalMethodSecurity注解，来判断用户对某个控制层的方法是否具有访问权限</strong></p>
+<p>​    （4）如果需要动态修改权限的数据</p>
+<p>​    <a target="_blank" rel="noopener" href="https://blog.csdn.net/caplike/article/details/107497640">参考链接</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Gateway/" rel="tag"># Gateway</a>
+              <a href="/tags/Oauth2/" rel="tag"># Oauth2</a>
+              <a href="/tags/Nacos/" rel="tag"># Nacos</a>
+              <a href="/tags/Sentinel/" rel="tag"># Sentinel</a>
+              <a href="/tags/Spring-Security/" rel="tag"># Spring Security</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/11/07/02%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1/" rel="prev" title="微服务技术-分布式事务">
+      <i class="fa fa-chevron-left"></i> 微服务技术-分布式事务
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/" rel="next" title="微服务技术-K8s容器资源评测">
+      微服务技术-K8s容器资源评测 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8A%A8%E6%80%81%E9%85%8D%E7%BD%AE"><span class="nav-number">1.</span> <span class="nav-text">动态配置</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Nacos-Rest-API"><span class="nav-number">1.1.</span> <span class="nav-text">Nacos Rest API</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E5%88%9B%E5%BB%BA-%E4%BF%AE%E6%94%B9"><span class="nav-number">1.1.1.</span> <span class="nav-text">配置文件创建&#x2F;修改</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E6%9F%A5%E8%AF%A2"><span class="nav-number">1.1.2.</span> <span class="nav-text">配置文件查询</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Gateway-%E5%8A%A8%E6%80%81%E5%88%B7%E6%96%B0"><span class="nav-number">1.2.</span> <span class="nav-text">Gateway 动态刷新</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Sentinel%E5%AE%A2%E6%88%B7%E7%AB%AF%E4%BD%BF%E7%94%A8Nacos-Datasource"><span class="nav-number">1.3.</span> <span class="nav-text">Sentinel客户端使用Nacos Datasource</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A8%E9%80%81JSON%E6%A0%BC%E5%BC%8F%E7%9A%84%E8%A7%84%E5%88%99"><span class="nav-number">1.3.1.</span> <span class="nav-text">推送JSON格式的规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BD%91%E5%85%B3%E4%BD%BF%E7%94%A8Nacos-Datasource"><span class="nav-number">1.3.2.</span> <span class="nav-text">网关使用Nacos Datasource</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%AE%A4%E8%AF%81%E9%89%B4%E6%9D%83"><span class="nav-number">2.</span> <span class="nav-text">认证鉴权</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%A4%E8%AF%81%E6%9C%8D%E5%8A%A1"><span class="nav-number">2.1.</span> <span class="nav-text">认证服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AF%86%E7%A0%81%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.1.1.</span> <span class="nav-text">密码模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%88%E6%9D%83%E7%A0%81%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.1.2.</span> <span class="nav-text">授权码模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.1.3.</span> <span class="nav-text">客户端模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AE%80%E6%98%93%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.1.4.</span> <span class="nav-text">简易模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BD%91%E5%85%B3%E6%9C%8D%E5%8A%A1"><span class="nav-number">2.2.</span> <span class="nav-text">网关服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%A8%E6%88%B7%E8%AE%A4%E8%AF%81"><span class="nav-number">2.2.1.</span> <span class="nav-text">用户认证</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3%E8%AE%A4%E8%AF%81"><span class="nav-number">2.2.2.</span> <span class="nav-text">接口认证</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B5%84%E6%BA%90%E6%9C%8D%E5%8A%A1"><span class="nav-number">2.3.</span> <span class="nav-text">资源服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%A8%E6%88%B7%E9%89%B4%E6%9D%83"><span class="nav-number">2.3.1.</span> <span class="nav-text">用户鉴权</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3%E9%89%B4%E6%9D%83"><span class="nav-number">2.3.2.</span> <span class="nav-text">接口鉴权</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E6%9D%83%E9%99%90"><span class="nav-number">2.3.3.</span> <span class="nav-text">数据权限</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E4%BB%A3%E7%A0%81"><span class="nav-number">2.4.</span> <span class="nav-text">核心代码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%A4%E8%AF%81%E6%9C%8D%E5%8A%A1-1"><span class="nav-number">2.4.1.</span> <span class="nav-text">认证服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E7%BD%91%E5%85%B3"><span class="nav-number">2.4.2.</span> <span class="nav-text">服务网关</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B5%84%E6%BA%90%E6%9C%8D%E5%8A%A1-1"><span class="nav-number">2.4.3.</span> <span class="nav-text">资源服务</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

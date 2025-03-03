@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="使用场景​    在基于Kubernetes的业务方案中，经常需要将Kubernetes中的资源对象，与实际的业务相结合，做一些业务的逻辑。一般业务的数据存放在业务系统的关系型数据库（例如mysql），而Kubernetes的资源对象存放在etcd中，虽然kubernetes的资源对象提供了类似annotation、labels这样的简单的保存&#x2F;查询业务数据的字段，但是不可能将系统所有相关的业务数">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes-Watch使用">
+<meta property="og:url" content="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="使用场景​    在基于Kubernetes的业务方案中，经常需要将Kubernetes中的资源对象，与实际的业务相结合，做一些业务的逻辑。一般业务的数据存放在业务系统的关系型数据库（例如mysql），而Kubernetes的资源对象存放在etcd中，虽然kubernetes的资源对象提供了类似annotation、labels这样的简单的保存&#x2F;查询业务数据的字段，但是不可能将系统所有相关的业务数">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/design.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/namespace-create-event.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/namespace-delete-event.png">
+<meta property="article:published_time" content="2021-10-02T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-10-02T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="ListWatch">
+<meta property="article:tag" content="LeaderElection">
+<meta property="article:tag" content="WorkQueue">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/design.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes-Watch使用 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes-Watch使用
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-10-03 00:00:00" itemprop="dateCreated datePublished" datetime="2021-10-03T00:00:00+08:00">2021-10-03</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="使用场景"><a href="#使用场景" class="headerlink" title="使用场景"></a>使用场景</h1><p>​    在基于Kubernetes的业务方案中，经常需要将Kubernetes中的资源对象，与实际的业务相结合，做一些业务的逻辑。一般业务的数据存放在业务系统的关系型数据库（例如mysql），而Kubernetes的资源对象存放在etcd中，虽然kubernetes的资源对象提供了类似annotation、labels这样的简单的保存/查询业务数据的字段，但是不可能将系统所有相关的业务数据都放到etcd中，这样会加重etcd的负担，降低Kubenetes的性能。</p>
+<p>​    所以，传统的做法，一般是采用定时任务，将Kubernetes与业务相关的数据同步会业务数据库中，这种定时同步任务是比较稳妥的方式，但是在时效性方面不尽如人意，对于一些对实时性有要求的业务操作影响较大。</p>
+<p>​    本文通过调研Kubernetes的Watch API。采用List Watch机制，将数据异步同步到业务的数据库中，提高数据同步的实时性。</p>
+<h1 id="方案设计"><a href="#方案设计" class="headerlink" title="方案设计"></a>方案设计</h1><h2 id="整体架构"><a href="#整体架构" class="headerlink" title="整体架构"></a>整体架构</h2><p><img src="design.png" alt="design"></p>
+<p>​    本文主要使用Golang编写实现，根据上图，主要包含三个主要组件：</p>
+<p>​    1）watcher</p>
+<p>​          负责Watch K8S中的API 资源对象。将收到的数据，放到queue中。</p>
+<p>​    2）worker</p>
+<p>​          负责消费queue中的数据，将数据同步到业务数据库中。</p>
+<p>​    3）queue</p>
+<p>​           负责解耦watcher和worker。</p>
+<h3 id="关键点"><a href="#关键点" class="headerlink" title="关键点"></a>关键点</h3><h3 id="高可用（选主）"><a href="#高可用（选主）" class="headerlink" title="高可用（选主）"></a>高可用（选主）</h3><p>​    参考kubernetes的controller-manager组件设计，使用k8s.io/client-go/tools/leaderelection在多实例的情况下，进行选主，保证同一时刻最多只有一个实例在正常工作。其它实例stand by。一旦主实例失败，其它实例通过竞争锁，成为新的leader。</p>
+<p>​    核心代码如下，锁也可以使用endpoint、configMap。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line">lock := &amp;resourcelock.LeaseLock&#123;</span><br><span class="line">    LeaseMeta: metav1.ObjectMeta&#123;</span><br><span class="line">        Name: leaseLockName,</span><br><span class="line">        Namespace: leaseLockNamespace,</span><br><span class="line">    &#125;,</span><br><span class="line">    Client: client.CoordinationV1(),</span><br><span class="line">    LockConfig: resourcelock.ResourceLockConfig&#123;</span><br><span class="line">        Identity: id,</span><br><span class="line">    &#125;,</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig&#123;</span><br><span class="line">    Lock: lock,</span><br><span class="line">    ReleaseOnCancel: <span class="literal">true</span>,</span><br><span class="line">    LeaseDuration: <span class="number">15</span> * time.Second,</span><br><span class="line">    RenewDeadline: <span class="number">10</span> * time.Second,</span><br><span class="line">    RetryPeriod: <span class="number">2</span> * time.Second,</span><br><span class="line">    Callbacks: leaderelection.LeaderCallbacks&#123;</span><br><span class="line">        OnStartedLeading: <span class="function"><span class="keyword">func</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">            Run(ctx)</span><br><span class="line">        &#125;,</span><br><span class="line">        OnStoppedLeading: <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">            cancel()</span><br><span class="line">            klog.Infof(<span class="string">&quot;leader lost: %s&quot;</span>, id)</span><br><span class="line">            os.Exit(<span class="number">0</span>)</span><br><span class="line">        &#125;,</span><br><span class="line">        OnNewLeader: <span class="function"><span class="keyword">func</span><span class="params">(identity <span class="keyword">string</span>)</span></span> &#123;</span><br><span class="line">            <span class="comment">// we&#x27;re notified when new leader elected</span></span><br><span class="line">            <span class="keyword">if</span> identity == id &#123;</span><br><span class="line">                <span class="comment">// I just got the lock</span></span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line">            &#125;</span><br><span class="line">            klog.Infof(<span class="string">&quot;new leader elected: %s&quot;</span>, identity)</span><br><span class="line">        &#125;,</span><br><span class="line">    &#125;,</span><br><span class="line"></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="Watcher"><a href="#Watcher" class="headerlink" title="Watcher"></a>Watcher</h3><p>​    根据controller-manager中的实现。Kubernetes的List Watch机制，需要配合全量数据同步，和增量的依据resourceVersion进行Watch。</p>
+<h4 id="全量同步"><a href="#全量同步" class="headerlink" title="全量同步"></a>全量同步</h4><p>​    这里需要通过List方法，首先将集群中对象全部查询出来，做全量同步。具体业务场景中，可以全量取出最新的数据，对已存的历史数据进行增量的对比修正，而不要采取全量删除重建的方式，减小对正在进行的业务的影响。</p>
+<p>​    全量数据同步后，需要记录资源的最新resourceVersion，以备传入Watch中，利用resoureVersion单调递增的特性，将全量同步之后的新增数据操作，全部交由Watch来处理。保证不丢数据操作，保持数据一致性。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">resourceVersion, err := fullSync()</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">workQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), clusterInfo.Name + <span class="string">&quot;@namespace&quot;</span>)</span><br><span class="line"></span><br><span class="line">startWatcher(ctx, clusterInfo.Config, resourceVersion, &amp;workQueue)</span><br><span class="line"></span><br><span class="line"><span class="comment">//multi workers</span></span><br><span class="line"><span class="keyword">for</span> i:=<span class="number">1</span>; i&lt;= clusterInfo.WorkerNum; i++ &#123;</span><br><span class="line">    startWorker(ctx, <span class="string">&quot;workers-&quot;</span> + strconv.Itoa(i) + <span class="string">&quot;@&quot;</span> + clusterInfo.Name, &amp;workQueue)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="失败重建"><a href="#失败重建" class="headerlink" title="失败重建"></a>失败重建</h4><p>​    Watch是不稳定的，正常的长时间Watch或者发生异常，会导致Watch关闭，需要保证Watch操作的自动重建，可以通过简单粗暴的死循环的方式，然而在k8s.io/client-go/tools/watch包中提供关于Watch失败重建的封装，在里面实现了记录最后一次Watch到数据的resourceVersion，在重建的时候，传入以保证不丢失数据。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">rw, err := toolswatch.NewRetryWatcher(initialResourceVersion, &amp;cache.ListWatch&#123;</span><br><span class="line">    WatchFunc: <span class="function"><span class="keyword">func</span><span class="params">(options metav1.ListOptions)</span> <span class="params">(watch.Interface, error)</span></span>&#123;</span><br><span class="line">        <span class="keyword">return</span> client.CoreV1().Namespaces().Watch(ctx, metav1.ListOptions&#123;&#125;)</span><br><span class="line">    &#125;,</span><br><span class="line">&#125;)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    klog.Errorf(<span class="string">&quot;watch namespace error: %s&quot;</span>, err)</span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">defer</span> rw.Stop()</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span>&#123;</span><br><span class="line">    <span class="keyword">select</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> event, ok := &lt;-rw.ResultChan():</span><br><span class="line">        <span class="keyword">if</span> !ok &#123;</span><br><span class="line">            klog.Info(<span class="string">&quot;result chan has been closed&quot;</span>)</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        &#125;</span><br><span class="line">        (*workQueue).Add(event)</span><br><span class="line">        <span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">        <span class="comment">//grace shutdown</span></span><br><span class="line">        klog.Info(<span class="string">&quot;gracefully shutdown&quot;</span>)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">        <span class="keyword">case</span> &lt;-rw.Done():</span><br><span class="line">        klog.Info(<span class="string">&quot;retry watcher has been stopped&quot;</span>)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">&#125;, <span class="number">200</span>*time.Millisecond, ctx.Done())</span><br></pre></td></tr></table></figure>
+
+<p>​    这里使用了一个工作队列来解耦负责数据库操作的worker和负责Watch数据的Watcher。因为二者处理速度的不匹配，可以通过开启多个Worker来加快处理进度。</p>
+<h3 id="Worker"><a href="#Worker" class="headerlink" title="Worker"></a>Worker</h3><h4 id="幂等性"><a href="#幂等性" class="headerlink" title="幂等性"></a>幂等性</h4><p>​    Watch本身是基于事件来进行通知的。对象的任何操作都会触发event，需要自行进行甄别。如下图所示，通过简单的创建然后删除namespace，打印收到的事件情况：</p>
+<p><img src="namespace-create-event.png" alt="namespace-create-event"></p>
+<p><img src="namespace-delete-event.png" alt="namespace-delete-event"></p>
+<p>​    可以看到在创建namespace的时候，收到了1个创建事件，4个修改事件。在删除namespace的时候，收到了三个修改事件，1个删除事件。通过多个worker处理这些事件的时候，需要考虑幂等性。同一个资源的两个事件被两个worker同时处理的情况是可能发生的，需要我们在worker根据自己的场景，采取相应的措施进行数据处理。</p>
+<p>​    本文只是同步namespace，所以只需要关注新增和删除事件。相对比较简单。</p>
+<h3 id="Queue"><a href="#Queue" class="headerlink" title="Queue"></a>Queue</h3><h4 id="线程安全"><a href="#线程安全" class="headerlink" title="线程安全"></a>线程安全</h4><p>​    这个由队列自身来保证，Kubernetes的DeploymentController也是使用的这样的队列。具体可以参照源码实现，了解其实现细节。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">workQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), clusterInfo.Name + <span class="string">&quot;@namespace&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="代码测试"><a href="#代码测试" class="headerlink" title="代码测试"></a>代码测试</h2><h3 id="完整示意代码"><a href="#完整示意代码" class="headerlink" title="完整示意代码"></a>完整示意代码</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br><span class="line">205</span><br><span class="line">206</span><br><span class="line">207</span><br><span class="line">208</span><br><span class="line">209</span><br><span class="line">210</span><br><span class="line">211</span><br><span class="line">212</span><br><span class="line">213</span><br><span class="line">214</span><br><span class="line">215</span><br><span class="line">216</span><br><span class="line">217</span><br><span class="line">218</span><br><span class="line">219</span><br><span class="line">220</span><br><span class="line">221</span><br><span class="line">222</span><br><span class="line">223</span><br><span class="line">224</span><br><span class="line">225</span><br><span class="line">226</span><br><span class="line">227</span><br><span class="line">228</span><br><span class="line">229</span><br><span class="line">230</span><br><span class="line">231</span><br><span class="line">232</span><br><span class="line">233</span><br><span class="line">234</span><br><span class="line">235</span><br><span class="line">236</span><br></pre></td><td class="code"><pre><span class="line">package main</span><br><span class="line"></span><br><span class="line">import (</span><br><span class="line">	&quot;context&quot;</span><br><span class="line">	&quot;flag&quot;</span><br><span class="line">	&quot;os&quot;</span><br><span class="line">	&quot;os&#x2F;signal&quot;</span><br><span class="line">	&quot;strconv&quot;</span><br><span class="line">	&quot;strings&quot;</span><br><span class="line">	&quot;syscall&quot;</span><br><span class="line">	&quot;time&quot;</span><br><span class="line"></span><br><span class="line">	v1 &quot;k8s.io&#x2F;api&#x2F;core&#x2F;v1&quot;</span><br><span class="line">	metav1 &quot;k8s.io&#x2F;apimachinery&#x2F;pkg&#x2F;apis&#x2F;meta&#x2F;v1&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;apimachinery&#x2F;pkg&#x2F;util&#x2F;uuid&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;apimachinery&#x2F;pkg&#x2F;util&#x2F;wait&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;apimachinery&#x2F;pkg&#x2F;watch&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;client-go&#x2F;kubernetes&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;client-go&#x2F;tools&#x2F;cache&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;client-go&#x2F;tools&#x2F;clientcmd&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;client-go&#x2F;tools&#x2F;leaderelection&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;client-go&#x2F;tools&#x2F;leaderelection&#x2F;resourcelock&quot;</span><br><span class="line">	toolswatch &quot;k8s.io&#x2F;client-go&#x2F;tools&#x2F;watch&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;client-go&#x2F;util&#x2F;workqueue&quot;</span><br><span class="line">	&quot;k8s.io&#x2F;klog&#x2F;v2&quot;</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line">const maxRetries &#x3D; 15</span><br><span class="line"></span><br><span class="line">type ClusterInfo struct &#123;</span><br><span class="line">	Name string</span><br><span class="line">	WorkerNum int</span><br><span class="line">	Config string</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F;测试一下选主API+ListWatch</span><br><span class="line">&#x2F;&#x2F;启动命令：go run leader_election.go -name&#x3D;election -namespace&#x3D;shadow -v&#x3D;4 -config&#x3D;C:&#x2F;Users&#x2F;shadow&#x2F;.kube&#x2F;config -id&#x3D;1</span><br><span class="line">func main()&#123;</span><br><span class="line">	klog.InitFlags(nil)</span><br><span class="line"></span><br><span class="line">	var config, leaseLockName, leaseLockNamespace, id string</span><br><span class="line">	flag.StringVar(&amp;config, &quot;config&quot;, &quot;&quot;, &quot;absolute path to the config path&quot;)</span><br><span class="line">	flag.StringVar(&amp;leaseLockName, &quot;name&quot;, &quot;&quot;, &quot;the lease lock resource name&quot;)</span><br><span class="line">	flag.StringVar(&amp;leaseLockNamespace, &quot;namespace&quot;, &quot;&quot;, &quot;the lease lock resource namespace&quot;)</span><br><span class="line">	flag.StringVar(&amp;id, &quot;id&quot;, string(uuid.NewUUID()), &quot;the holder identity name&quot;)</span><br><span class="line"></span><br><span class="line">	flag.Parse()</span><br><span class="line"></span><br><span class="line">	if leaseLockName &#x3D;&#x3D; &quot;&quot; &#123;</span><br><span class="line">		klog.Fatal(&quot;unable to get lease lock resource name&quot;)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	if leaseLockNamespace &#x3D;&#x3D; &quot;&quot; &#123;</span><br><span class="line">		klog.Fatal(&quot;unable to get lease lock resource namespace&quot;)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	cfg, err :&#x3D;clientcmd.BuildConfigFromFlags(&quot;&quot;, config)</span><br><span class="line">	if err !&#x3D; nil &#123;</span><br><span class="line">		klog.Fatal(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	client :&#x3D; kubernetes.NewForConfigOrDie(cfg)</span><br><span class="line"></span><br><span class="line">	ctx, cancel :&#x3D; context.WithCancel(context.Background())</span><br><span class="line">	defer cancel()</span><br><span class="line"></span><br><span class="line">	ch :&#x3D; make(chan os.Signal, 1)</span><br><span class="line">	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)</span><br><span class="line">	go func() &#123;</span><br><span class="line">		&lt;-ch</span><br><span class="line">		klog.Info(&quot;Received termination, signaling shutdown&quot;)</span><br><span class="line">		cancel()</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	lock :&#x3D; &amp;resourcelock.LeaseLock&#123;</span><br><span class="line">		LeaseMeta: metav1.ObjectMeta&#123;</span><br><span class="line">			Name: leaseLockName,</span><br><span class="line">			Namespace: leaseLockNamespace,</span><br><span class="line">		&#125;,</span><br><span class="line">		Client: client.CoordinationV1(),</span><br><span class="line">		LockConfig: resourcelock.ResourceLockConfig&#123;</span><br><span class="line">			Identity: id,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig&#123;</span><br><span class="line">		Lock: lock,</span><br><span class="line">		ReleaseOnCancel: true,</span><br><span class="line">		LeaseDuration: 15 * time.Second,</span><br><span class="line">		RenewDeadline: 10 * time.Second,</span><br><span class="line">		RetryPeriod: 2 * time.Second,</span><br><span class="line">		Callbacks: leaderelection.LeaderCallbacks&#123;</span><br><span class="line">			OnStartedLeading: func(ctx context.Context) &#123;</span><br><span class="line">				Run(ctx)</span><br><span class="line">			&#125;,</span><br><span class="line">			OnStoppedLeading: func() &#123;</span><br><span class="line">				cancel()</span><br><span class="line">				klog.Infof(&quot;leader lost: %s&quot;, id)</span><br><span class="line">				os.Exit(0)</span><br><span class="line">			&#125;,</span><br><span class="line">			OnNewLeader: func(identity string) &#123;</span><br><span class="line">				&#x2F;&#x2F; we&#39;re notified when new leader elected</span><br><span class="line">				if identity &#x3D;&#x3D; id &#123;</span><br><span class="line">					&#x2F;&#x2F; I just got the lock</span><br><span class="line">					return</span><br><span class="line">				&#125;</span><br><span class="line">				klog.Infof(&quot;new leader elected: %s&quot;, identity)</span><br><span class="line">			&#125;,</span><br><span class="line">		&#125;,</span><br><span class="line"></span><br><span class="line">	&#125;)</span><br><span class="line"></span><br><span class="line">	panic(&quot;Unreachable&quot;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func Run (ctx context.Context)&#123;</span><br><span class="line">	klog.Infof(&quot;leader run starting......&quot;)</span><br><span class="line"></span><br><span class="line">	for _, clusterInfo :&#x3D; range gerClusterInfos()&#123;</span><br><span class="line"></span><br><span class="line">		resourceVersion, err :&#x3D; fullSync()</span><br><span class="line">		if err !&#x3D; nil &#123;</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		workQueue :&#x3D; workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), clusterInfo.Name + &quot;@namespace&quot;)</span><br><span class="line"></span><br><span class="line">		startWatcher(ctx, clusterInfo.Config, resourceVersion, &amp;workQueue)</span><br><span class="line"></span><br><span class="line">		&#x2F;&#x2F;multi workers</span><br><span class="line">		for i:&#x3D;1; i&lt;&#x3D; clusterInfo.WorkerNum; i++ &#123;</span><br><span class="line">			startWorker(ctx, &quot;workers-&quot; + strconv.Itoa(i) + &quot;@&quot; + clusterInfo.Name, &amp;workQueue)</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	klog.Infof(&quot;leader run successfully exit~&quot;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">func getClient(content string) (*kubernetes.Clientset, error) &#123;</span><br><span class="line">	config, err :&#x3D; clientcmd.RESTConfigFromKubeConfig([]byte(content))</span><br><span class="line">	if err !&#x3D; nil &#123;</span><br><span class="line">		return nil, err</span><br><span class="line">	&#125;</span><br><span class="line">	return kubernetes.NewForConfig(config)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">func gerClusterInfos() []ClusterInfo&#123;</span><br><span class="line">	&#x2F;&#x2F;TODO get all cluster information</span><br><span class="line">	return []ClusterInfo&#123;</span><br><span class="line">		&#123;</span><br><span class="line">			Name: &quot;cluster&quot;,</span><br><span class="line">			Config: &quot;这里是连接集群的kubeconfig文件的内容&quot;,</span><br><span class="line">			WorkerNum: 2,</span><br><span class="line">		&#125;,</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func startWatcher(ctx context.Context, config, initialResourceVersion string, workQueue *workqueue.RateLimitingInterface)&#123;</span><br><span class="line">	go wait.Until(func() &#123;</span><br><span class="line">		defer (*workQueue).ShutDown()</span><br><span class="line"></span><br><span class="line">		client, err :&#x3D; getClient(config)</span><br><span class="line">		if err !&#x3D; nil &#123;</span><br><span class="line">			klog.Errorf(&quot;get client from kube config error: %v&quot;, err)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		rw, err :&#x3D; toolswatch.NewRetryWatcher(initialResourceVersion, &amp;cache.ListWatch&#123;</span><br><span class="line">			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error)&#123;</span><br><span class="line">				return client.CoreV1().Namespaces().Watch(ctx, metav1.ListOptions&#123;&#125;)</span><br><span class="line">			&#125;,</span><br><span class="line">		&#125;)</span><br><span class="line"></span><br><span class="line">		if err !&#x3D; nil &#123;</span><br><span class="line">			klog.Errorf(&quot;watch namespace error: %s&quot;, err)</span><br><span class="line">			return</span><br><span class="line">		&#125;</span><br><span class="line">		defer rw.Stop()</span><br><span class="line"></span><br><span class="line">		for&#123;</span><br><span class="line">			select &#123;</span><br><span class="line">			case event, ok :&#x3D; &lt;-rw.ResultChan():</span><br><span class="line">				if !ok &#123;</span><br><span class="line">					klog.Info(&quot;result chan has been closed&quot;)</span><br><span class="line">					return</span><br><span class="line">				&#125;</span><br><span class="line">				(*workQueue).Add(event)</span><br><span class="line">			case &lt;-ctx.Done():</span><br><span class="line">				&#x2F;&#x2F;grace shutdown</span><br><span class="line">				klog.Info(&quot;gracefully shutdown&quot;)</span><br><span class="line">				return</span><br><span class="line">			case &lt;-rw.Done():</span><br><span class="line">				klog.Info(&quot;retry watcher has been stopped&quot;)</span><br><span class="line">				return</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;, 200*time.Millisecond, ctx.Done())</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">func startWorker(ctx context.Context, identify string, workQueue *workqueue.RateLimitingInterface)&#123;</span><br><span class="line">	go wait.Until(func()&#123;</span><br><span class="line">		for &#123;</span><br><span class="line">			item, shutdown :&#x3D; (*workQueue).Get()</span><br><span class="line">			if shutdown &#123;</span><br><span class="line">				return</span><br><span class="line">			&#125;</span><br><span class="line">			func()&#123;</span><br><span class="line">				defer (*workQueue).Done(item)</span><br><span class="line"></span><br><span class="line">				event :&#x3D; item.(watch.Event)</span><br><span class="line">				namespace :&#x3D; event.Object.(*v1.Namespace)</span><br><span class="line"></span><br><span class="line">				&#x2F;&#x2F;persistent to cmdb idempotence</span><br><span class="line">				klog.Infof(&quot;%s -&gt; cluster:%s, operation:%s, namespace:%s, tenant:%s &quot;, identify, strings.Split(identify, &quot;@&quot;)[1], event.Type, namespace.Name, namespace.Labels[&quot;k8s.shadow.io&#x2F;tenant&quot;])</span><br><span class="line"></span><br><span class="line">				var err error</span><br><span class="line">				if err !&#x3D; nil &amp;&amp; (*workQueue).NumRequeues(item) &lt; maxRetries &#123;</span><br><span class="line">					(*workQueue).AddRateLimited(item)</span><br><span class="line">					klog.Errorf(&quot;cmdb syncing %s error:%s, re-queuing&quot;, namespace.Name, err.Error())</span><br><span class="line">					return</span><br><span class="line">				&#125;</span><br><span class="line"></span><br><span class="line">				(*workQueue).Forget(item)</span><br><span class="line">			&#125;()</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;, 200*time.Millisecond, ctx.Done())</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">func fullSync() (string, error) &#123;</span><br><span class="line">	resourceVersion :&#x3D; &quot;1&quot;</span><br><span class="line">	&#x2F;&#x2F;TODO full data compare and sync</span><br><span class="line">	klog.Info(&quot;full data sync&quot;)</span><br><span class="line">	return resourceVersion, nil</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<blockquote>
+<p>示意代码中，关于数据库的操作只使用了打印日志来代替</p>
+<p>多集群的获取，暂时写死在配置中，可以通过更灵活的获取方式，考虑集群添加如何动态识别</p>
+</blockquote>
+<h3 id="测试方式"><a href="#测试方式" class="headerlink" title="测试方式"></a>测试方式</h3><p>​    创建选主所需要的锁资源，这里使用的是lease资源。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">kubectl apply -f - &lt;&lt;<span class="string">EOF </span></span><br><span class="line"><span class="string">apiVersion: coordination.k8s.io/v1</span></span><br><span class="line"><span class="string">kind: Lease</span></span><br><span class="line"><span class="string">metadata:</span></span><br><span class="line"><span class="string">  name: shadow</span></span><br><span class="line"><span class="string">  namespace: shadow</span></span><br><span class="line"><span class="string">EOF</span></span><br></pre></td></tr></table></figure>
+
+<p>​    切换到代码所在目录，通过如下命令启动集群，如要启动多个实例，更改一下id的值。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">go run leader_election.go -name&#x3D;election -namespace&#x3D;shadow -v&#x3D;4 -config&#x3D;C:&#x2F;Users&#x2F;shadow&#x2F;.kube&#x2F;config -id&#x3D;1</span><br></pre></td></tr></table></figure>
+
+<p>​    关闭被选为主的id进程，观察选主情况。</p>
+<p>​    创建资源观察Watcher及Worker的处理情况。</p>
+<p>​    放置一段时间，观察Watch重建情况。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ListWatch/" rel="tag"># ListWatch</a>
+              <a href="/tags/LeaderElection/" rel="tag"># LeaderElection</a>
+              <a href="/tags/WorkQueue/" rel="tag"># WorkQueue</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/08/10/Kubernetes-NetworkPolicy/" rel="prev" title="Kubernetes-NetworkPolicy">
+      <i class="fa fa-chevron-left"></i> Kubernetes-NetworkPolicy
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/" rel="next" title="Kubernetes-源码分析kube-scheduler">
+      Kubernetes-源码分析kube-scheduler <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">使用场景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%96%B9%E6%A1%88%E8%AE%BE%E8%AE%A1"><span class="nav-number">2.</span> <span class="nav-text">方案设计</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">2.1.</span> <span class="nav-text">整体架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E7%82%B9"><span class="nav-number">2.1.1.</span> <span class="nav-text">关键点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%AB%98%E5%8F%AF%E7%94%A8%EF%BC%88%E9%80%89%E4%B8%BB%EF%BC%89"><span class="nav-number">2.1.2.</span> <span class="nav-text">高可用（选主）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Watcher"><span class="nav-number">2.1.3.</span> <span class="nav-text">Watcher</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%A8%E9%87%8F%E5%90%8C%E6%AD%A5"><span class="nav-number">2.1.3.1.</span> <span class="nav-text">全量同步</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%A4%B1%E8%B4%A5%E9%87%8D%E5%BB%BA"><span class="nav-number">2.1.3.2.</span> <span class="nav-text">失败重建</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Worker"><span class="nav-number">2.1.4.</span> <span class="nav-text">Worker</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B9%82%E7%AD%89%E6%80%A7"><span class="nav-number">2.1.4.1.</span> <span class="nav-text">幂等性</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Queue"><span class="nav-number">2.1.5.</span> <span class="nav-text">Queue</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8"><span class="nav-number">2.1.5.1.</span> <span class="nav-text">线程安全</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81%E6%B5%8B%E8%AF%95"><span class="nav-number">2.2.</span> <span class="nav-text">代码测试</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F%E4%BB%A3%E7%A0%81"><span class="nav-number">2.2.1.</span> <span class="nav-text">完整示意代码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95%E6%96%B9%E5%BC%8F"><span class="nav-number">2.2.2.</span> <span class="nav-text">测试方式</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

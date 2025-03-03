@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="​    Kube-Scheduler负责Pod的节点分配，通过预选和优选两个过程，为Pod选择一个合适的节点，预选和优选过程中包含很多内置的调度算法，在实际的场景中，也可能根据具体的业务场景基于原有的调度器进行扩展，或者完全重新编写一个新的调度器，Kubernetes是如何进行节点调度的，又是如何支持调度器扩展的。 组件介绍​    Kube-Scheduler依托第二代调度框架，提供了灵活的配">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes-源码分析kube-scheduler">
+<meta property="og:url" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="​    Kube-Scheduler负责Pod的节点分配，通过预选和优选两个过程，为Pod选择一个合适的节点，预选和优选过程中包含很多内置的调度算法，在实际的场景中，也可能根据具体的业务场景基于原有的调度器进行扩展，或者完全重新编写一个新的调度器，Kubernetes是如何进行节点调度的，又是如何支持调度器扩展的。 组件介绍​    Kube-Scheduler依托第二代调度框架，提供了灵活的配">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/schedule-framework.jpg">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/Kube-Scheduler.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/schedule-architecture.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/kube-shceduler-start-cmd.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/kube-scheduler-config.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/scheduler-plugins.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/schduler-plugins-instance.png">
+<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/scheduler-cache-queue.png">
+<meta property="article:published_time" content="2021-10-15T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-10-15T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="kube-scheduler源码">
+<meta property="article:tag" content="scheduler framework">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/schedule-framework.jpg">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Kubernetes-源码分析kube-scheduler | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes-源码分析kube-scheduler
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-10-16 00:00:00" itemprop="dateCreated datePublished" datetime="2021-10-16T00:00:00+08:00">2021-10-16</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​    Kube-Scheduler负责Pod的节点分配，通过预选和优选两个过程，为Pod选择一个合适的节点，预选和优选过程中包含很多内置的调度算法，在实际的场景中，也可能根据具体的业务场景基于原有的调度器进行扩展，或者完全重新编写一个新的调度器，Kubernetes是如何进行节点调度的，又是如何支持调度器扩展的。</p>
+<h1 id="组件介绍"><a href="#组件介绍" class="headerlink" title="组件介绍"></a>组件介绍</h1><p>​    Kube-Scheduler依托第二代调度框架，提供了灵活的配置方式和扩展方法，可以作用在调度过程中各个环境，乃至最后的绑定过程。用户可以根据自己的业务场景灵活搭配。</p>
+<p>​    Kube-scheduler的调度框架，因为要支持用户自定义的配置和扩展，具有一定的抽象度，阅读起来有些晦涩，本文侧重于整体的调度流程实现以及与用户自定义扩展的契合。就一些迷惑点，进行分析。</p>
+<blockquote>
+<p><strong>特别说明</strong></p>
+<p>​    本次源码分析，主要为了理清Kubernetes核心组件的整体实现思路，会着重分析一些看源码时候比较迷惑的点， 但并不会局限于全部的实现细节，也不局限于某个版本，因此代码的原本是直接使用下面命令clone的Github上最新代码</p>
+<p>​    git clone –depth=1 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes.git%E3%80%82">https://github.com/kubernetes/kubernetes.git。</a></p>
+<p>​    笔者认为，也许代码的实现细节会随着版本的更迭，有所更新，但核心的实现思路并不会有太大变化，只要理清了这些核心的实现，在工作学习中，结合具体场景具体问题再做具体分析，再返回头来深究一些细节，也是会事半功倍的。</p>
+<p>​    源码分析不是一蹉而就的，需要反复阅读，反复考究。温故而知新。</p>
+</blockquote>
+<h1 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h1><p>​    下图使用知乎大神的帖子，清晰展示了整个调度过程涉及到的点，有助于理解整个调度框架的整体过程。</p>
+<p><img src="schedule-framework.jpg" alt="schedule-framework"></p>
+<h2 id="主线脉络"><a href="#主线脉络" class="headerlink" title="主线脉络"></a>主线脉络</h2><p>​    下图是根据代码整理的调度器的方法调用主干过程，其中黄色标签的三个点，因为篇幅原因，未能在本图上继续展开，将在2.2中予以说明。</p>
+<p>​    <img src="Kube-Scheduler.png" alt="Kube-Scheduler"></p>
+<p>​    上述代码的主干调用关系，很难看出调度器工作过程中涉及到的主要组件和它们之间的关系，在《Kubernetes源码剖析》书中，有一副图片，整体上展示了整个调度过程，各组件之间的关系。这里直接引用过来供参考。</p>
+<p><img src="schedule-architecture.png" alt="schedule-architecture"></p>
+<p>​    </p>
+<p>​    下面将详细解释笔者阅读源码时一些比较困惑的点，结合这些细节的点，来理解整个调度过程和各组件之间的协作。</p>
+<h2 id="关键代码"><a href="#关键代码" class="headerlink" title="关键代码"></a>关键代码</h2><h3 id="调度算法（插件）"><a href="#调度算法（插件）" class="headerlink" title="调度算法（插件）"></a>调度算法（插件）</h3><p>​    调度器会默认提供一些调度算法，并通过配置的方式供用户扩展，最后这些调度算法会应用在调度框架中。</p>
+<h4 id="默认配置"><a href="#默认配置" class="headerlink" title="默认配置"></a>默认配置</h4><p>​    调度器通过KubeSchedulerConfiguration提供配置选项，用户可以在调度器的命令行中使用–config指定对应的资源清单。</p>
+<p>​    下面是在Kubernetes v1.21.5使用–write-config-to默认导出的一份配置资源文件，这里不涉及任何用户自定义的部分，先来看一下有个直观的认识。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">clientConnection:</span></span><br><span class="line">  <span class="attr">acceptContentTypes:</span> <span class="string">&quot;&quot;</span></span><br><span class="line">  <span class="attr">burst:</span> <span class="number">100</span></span><br><span class="line">  <span class="attr">contentType:</span> <span class="string">application/vnd.kubernetes.protobuf</span></span><br><span class="line">  <span class="attr">kubeconfig:</span> <span class="string">/etc/kubernetes/scheduler.conf</span></span><br><span class="line">  <span class="attr">qps:</span> <span class="number">50</span></span><br><span class="line"><span class="attr">enableContentionProfiling:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">enableProfiling:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">healthzBindAddress:</span> <span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span><span class="string">:10251</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">KubeSchedulerConfiguration</span></span><br><span class="line"><span class="attr">leaderElection:</span></span><br><span class="line">  <span class="attr">leaderElect:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">leaseDuration:</span> <span class="string">15s</span></span><br><span class="line">  <span class="attr">renewDeadline:</span> <span class="string">10s</span></span><br><span class="line">  <span class="attr">resourceLock:</span> <span class="string">leases</span></span><br><span class="line">  <span class="attr">resourceName:</span> <span class="string">kube-scheduler</span></span><br><span class="line">  <span class="attr">resourceNamespace:</span> <span class="string">kube-system</span></span><br><span class="line">  <span class="attr">retryPeriod:</span> <span class="string">2s</span></span><br><span class="line"><span class="attr">metricsBindAddress:</span> <span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span><span class="string">:10251</span></span><br><span class="line"><span class="attr">parallelism:</span> <span class="number">16</span></span><br><span class="line"><span class="attr">percentageOfNodesToScore:</span> <span class="number">0</span></span><br><span class="line"><span class="attr">podInitialBackoffSeconds:</span> <span class="number">1</span></span><br><span class="line"><span class="attr">podMaxBackoffSeconds:</span> <span class="number">10</span></span><br><span class="line"><span class="attr">profiles:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">pluginConfig:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">DefaultPreemptionArgs</span></span><br><span class="line">      <span class="attr">minCandidateNodesAbsolute:</span> <span class="number">100</span></span><br><span class="line">      <span class="attr">minCandidateNodesPercentage:</span> <span class="number">10</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">DefaultPreemption</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">hardPodAffinityWeight:</span> <span class="number">1</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">InterPodAffinityArgs</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">InterPodAffinity</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">NodeAffinityArgs</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">NodeAffinity</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">NodeResourcesFitArgs</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">NodeResourcesFit</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">NodeResourcesLeastAllocatedArgs</span></span><br><span class="line">      <span class="attr">resources:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">cpu</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">memory</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">NodeResourcesLeastAllocated</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">defaultingType:</span> <span class="string">System</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">PodTopologySpreadArgs</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">PodTopologySpread</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">args:</span></span><br><span class="line">      <span class="attr">apiVersion:</span> <span class="string">kubescheduler.config.k8s.io/v1beta1</span></span><br><span class="line">      <span class="attr">bindTimeoutSeconds:</span> <span class="number">600</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">VolumeBindingArgs</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">VolumeBinding</span></span><br><span class="line">  <span class="attr">plugins:</span></span><br><span class="line">    <span class="attr">bind:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">DefaultBinder</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">filter:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeUnschedulable</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeName</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">TaintToleration</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodePorts</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeResourcesFit</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">VolumeRestrictions</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">EBSLimits</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">GCEPDLimits</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeVolumeLimits</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">AzureDiskLimits</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">VolumeBinding</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">VolumeZone</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">PodTopologySpread</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">InterPodAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">permit:</span> &#123;&#125;</span><br><span class="line">    <span class="attr">postBind:</span> &#123;&#125;</span><br><span class="line">    <span class="attr">postFilter:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">DefaultPreemption</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">preBind:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">VolumeBinding</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">preFilter:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeResourcesFit</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodePorts</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">PodTopologySpread</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">InterPodAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">VolumeBinding</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">preScore:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">InterPodAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">PodTopologySpread</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">TaintToleration</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">queueSort:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">PrioritySort</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">reserve:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">VolumeBinding</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">0</span></span><br><span class="line">    <span class="attr">score:</span></span><br><span class="line">      <span class="attr">enabled:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeResourcesBalancedAllocation</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">ImageLocality</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">InterPodAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeResourcesLeastAllocated</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodeAffinity</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">NodePreferAvoidPods</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">10000</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">PodTopologySpread</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">2</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">TaintToleration</span></span><br><span class="line">        <span class="attr">weight:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">schedulerName:</span> <span class="string">default-scheduler</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>​    在这个实际的集群中，看一下kube-scheduler的启动参数</p>
+<p><img src="kube-shceduler-start-cmd.png" alt="kube-shceduler-start-cmd"></p>
+<p>​    实际指定的配置内容如下：</p>
+<p><img src="kube-scheduler-config.png" alt="kube-scheduler-config"></p>
+<p>​    </p>
+<blockquote>
+<p><strong>重点放在profiles这个字段上，这是一个数组，用户可以定义多个profile然后在pod中指定调度器的名称来选择使用对用的调度器对其进行调度，如果不指定，默认使用default-scheduler这一默认调度器。但一般情况下，如果集群中存在多个调度器，需要考虑相互之间的资源隔离问题。</strong></p>
+</blockquote>
+<p>​    最终生成的使用配置对象与启动时指定的对象相比，多了许多内容，这里重点关注profiles中调度算法如何填充进去的，通过源码来看一下。</p>
+<p><img src="scheduler-plugins.png" alt="scheduler-plugins"></p>
+<p>​    最后将不同类型配置对应的初始化方法注册在defaulterFuncs这个变量中，而调度器初始化的代码中，①的黄色标签最后的代码正是从这个变量中，根据类型获取到初始化方法然后执行的。</p>
+<blockquote>
+<p><strong>这里用户自定义配置与默认配置merge的过程，略过不计。</strong></p>
+</blockquote>
+<h4 id="注册调度框架"><a href="#注册调度框架" class="headerlink" title="注册调度框架"></a>注册调度框架</h4><p>​    在2.1调度器代码的主线脉络的图中，实际的调度过程，大量从frameworkImpl对象中获取实例化的调度算法对象，然后执行相应的过滤，从frameworkImpl这个对象的定义中，找到了关于各个调度点的调度器集合的定义（如下），那么这些实例化的调度算法对象，是如何将自己注册给调度框架的呢？</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> frameworkImpl <span class="keyword">struct</span> &#123;</span><br><span class="line">    ...省略...</span><br><span class="line">    </span><br><span class="line">	queueSortPlugins     []framework.QueueSortPlugin</span><br><span class="line">	preFilterPlugins     []framework.PreFilterPlugin</span><br><span class="line">	filterPlugins        []framework.FilterPlugin</span><br><span class="line">	postFilterPlugins    []framework.PostFilterPlugin</span><br><span class="line">	preScorePlugins      []framework.PreScorePlugin</span><br><span class="line">	scorePlugins         []framework.ScorePlugin</span><br><span class="line">	reservePlugins       []framework.ReservePlugin</span><br><span class="line">	preBindPlugins       []framework.PreBindPlugin</span><br><span class="line">	bindPlugins          []framework.BindPlugin</span><br><span class="line">	postBindPlugins      []framework.PostBindPlugin</span><br><span class="line">	permitPlugins        []framework.PermitPlugin</span><br><span class="line">    </span><br><span class="line">	...省略...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    在2.2.1.1中生成了调度器的配置文件，最终放到了内置的资源对象KubeSchedulerConfiguration中，这里重点关注Profiles和Extenders两个slice，这都是调度器的扩展方式。</p>
+<blockquote>
+<p>Extenders的扩展，类似于webhook的方式，是发送请求到另一个服务，代码不在调度器的主逻辑中，松耦合，但是因为不是本地方法调用，性能要差一些。</p>
+</blockquote>
+<p>​    基于以上，看一下调度算法实例在调度框架的注册。</p>
+<p><img src="schduler-plugins-instance.png" alt="schduler-plugins-instance"></p>
+<h3 id="调度队列、缓存"><a href="#调度队列、缓存" class="headerlink" title="调度队列、缓存"></a>调度队列、缓存</h3><p>​    先来看一下调度器的数据结构：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">type Scheduler struct &#123;</span><br><span class="line">	&#x2F;&#x2F; It is expected that changes made via SchedulerCache will be observed</span><br><span class="line">	&#x2F;&#x2F; by NodeLister and Algorithm.</span><br><span class="line">	SchedulerCache internalcache.Cache</span><br><span class="line"></span><br><span class="line">	Algorithm ScheduleAlgorithm</span><br><span class="line"></span><br><span class="line">	Extenders []framework.Extender</span><br><span class="line"></span><br><span class="line">	&#x2F;&#x2F; NextPod should be a function that blocks until the next pod</span><br><span class="line">	&#x2F;&#x2F; is available. We don&#39;t use a channel for this, because scheduling</span><br><span class="line">	&#x2F;&#x2F; a pod may take some amount of time and we don&#39;t want pods to get</span><br><span class="line">	&#x2F;&#x2F; stale while they sit in a channel.</span><br><span class="line">	NextPod func() *framework.QueuedPodInfo</span><br><span class="line"></span><br><span class="line">	&#x2F;&#x2F; Error is called if there is an error. It is passed the pod in</span><br><span class="line">	&#x2F;&#x2F; question, and the error</span><br><span class="line">	Error func(*framework.QueuedPodInfo, error)</span><br><span class="line"></span><br><span class="line">	&#x2F;&#x2F; Close this to shut down the scheduler.</span><br><span class="line">	StopEverything &lt;-chan struct&#123;&#125;</span><br><span class="line"></span><br><span class="line">	&#x2F;&#x2F; SchedulingQueue holds pods to be scheduled</span><br><span class="line">	SchedulingQueue internalqueue.SchedulingQueue</span><br><span class="line"></span><br><span class="line">	&#x2F;&#x2F; Profiles are the scheduling profiles.</span><br><span class="line">	Profiles profile.Map</span><br><span class="line"></span><br><span class="line">	client clientset.Interface</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    在这里面重点关注调度队列SchedulingQueue和调度缓存SchedulerCache。</p>
+<pre><code> SchedulingQueue是PriorityQueue的实例化对象，其中有三个队列：
+</code></pre>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> PriorityQueue <span class="keyword">struct</span> &#123;</span><br><span class="line">   ...省略...  </span><br><span class="line"></span><br><span class="line">   <span class="comment">// activeQ is heap structure that scheduler actively looks at to find pods to</span></span><br><span class="line">   <span class="comment">// schedule. Head of heap is the highest priority pod.</span></span><br><span class="line">   activeQ *heap.Heap</span><br><span class="line">   <span class="comment">// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff</span></span><br><span class="line">   <span class="comment">// are popped from this heap before the scheduler looks at activeQ</span></span><br><span class="line">   podBackoffQ *heap.Heap</span><br><span class="line">   <span class="comment">// unschedulableQ holds pods that have been tried and determined unschedulable.</span></span><br><span class="line">   unschedulableQ *UnschedulablePodsMap</span><br><span class="line">   </span><br><span class="line">   ...省略...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    SchedulerCache的数据结构如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">type schedulerCache struct &#123;</span><br><span class="line">   stop   &lt;-chan struct&#123;&#125;</span><br><span class="line">   ttl    time.Duration</span><br><span class="line">   period time.Duration</span><br><span class="line"></span><br><span class="line">   &#x2F;&#x2F; This mutex guards all fields within this cache struct.</span><br><span class="line">   mu sync.RWMutex</span><br><span class="line">   &#x2F;&#x2F; a set of assumed pod keys.</span><br><span class="line">   &#x2F;&#x2F; The key could further be used to get an entry in podStates.</span><br><span class="line">   assumedPods sets.String</span><br><span class="line">   &#x2F;&#x2F; a map from pod key to podState.</span><br><span class="line">   podStates map[string]*podState</span><br><span class="line">   nodes     map[string]*nodeInfoListItem</span><br><span class="line">   &#x2F;&#x2F; headNode points to the most recently updated NodeInfo in &quot;nodes&quot;. It is the</span><br><span class="line">   &#x2F;&#x2F; head of the linked list.</span><br><span class="line">   headNode *nodeInfoListItem</span><br><span class="line">   nodeTree *nodeTree</span><br><span class="line">   &#x2F;&#x2F; A map from image name to its imageState.</span><br><span class="line">   imageStates map[string]*imageState</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>​    在调度的主逻辑中，通过podInfo := sched.NextPod() 从调度队列中拿到了下一个待调度的Pod，然后执行调度过程，从调度缓存中拿到节点的snapshot，然后执行对应的调度算法，下面来看一下调度队列，调度缓存的数据是如何维护的。</p>
+<p><img src="scheduler-cache-queue.png" alt="scheduler-cache-queue"></p>
+<p>​    当监听到Node/Pod的事件后，需要更新缓存数据和调度队列。这其中需要注意一些点：</p>
+<p>​    1）如果事件可能会让新的节点调度起来（例如新增Node/Pod调度到新的节点亲和性发生变化）那么需要从unschedulableQ/backoffQ队列新加入到调度队列activeQ中。</p>
+<p>​    2）SchedulerCache中维护了一个node的双向链表，每次会将最新更新的Node移动到链表的头部。</p>
+<p>​    3）资源事件的回调处理。</p>
+<h1 id="知识扩展"><a href="#知识扩展" class="headerlink" title="知识扩展"></a>知识扩展</h1><p>​    在阅读调度器的源码过程中，重点关注了调度框架的实现，以及调度框架如何让用户更容易地扩展，目前了解到的一些关于调度框架的扩展的场景，包括：</p>
+<p>​    1）腾讯开源的GaiaGPU中的GPU Scheduler组件。</p>
+<p>​           <a target="_blank" rel="noopener" href="https://pokerfacesad.github.io/2020/02/07/%E8%AE%BA%E6%96%87%E7%AC%94%E8%AE%B0%E3%80%8AGaiaGPU%20Sharing%20GPUs%20in%20Container%20Clouds%E3%80%8B/">论文笔记《GaiaGPU：Sharing GPUs in Container Clouds》</a>。</p>
+<p>​    2）大数据的一些跑批任务，使用Kubernetes进行资源调度，需要考虑按Group调度和资源的碎片化问题。这里面也涉及到了Serveless的一些技术，使用Virtual Kubelet在Serverless平台进行弹性伸缩。</p>
+<p>​    目前了解到的调度器扩展主要有：</p>
+<p>​    1）通过配置文件改变默认的default-scheduler的参数。</p>
+<p>​    2）自定义自己的调度器。</p>
+<p>​    3）使用extender或者是plugins对调度器进行扩展。extender类似于webhook的方式，是通过远程调用第三方服务来执行调度判定，性能较差，未来可能会被废弃。而plugins的方式，使用本地方法调用，性能上有优势，但是因为需要重新编译调度器，耦合调度器的代码，在Kubernetes版本升级兼容可能存在问题。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/kube-scheduler%E6%BA%90%E7%A0%81/" rel="tag"># kube-scheduler源码</a>
+              <a href="/tags/scheduler-framework/" rel="tag"># scheduler framework</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/10/03/Kubernetes-Watch%E4%BD%BF%E7%94%A8/" rel="prev" title="Kubernetes-Watch使用">
+      <i class="fa fa-chevron-left"></i> Kubernetes-Watch使用
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/" rel="next" title="Kubernetes-源码分析kube-controller-manager">
+      Kubernetes-源码分析kube-controller-manager <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BB%84%E4%BB%B6%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">组件介绍</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">源码分析</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BB%E7%BA%BF%E8%84%89%E7%BB%9C"><span class="nav-number">2.1.</span> <span class="nav-text">主线脉络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81"><span class="nav-number">2.2.</span> <span class="nav-text">关键代码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B0%83%E5%BA%A6%E7%AE%97%E6%B3%95%EF%BC%88%E6%8F%92%E4%BB%B6%EF%BC%89"><span class="nav-number">2.2.1.</span> <span class="nav-text">调度算法（插件）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%BB%98%E8%AE%A4%E9%85%8D%E7%BD%AE"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">默认配置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B3%A8%E5%86%8C%E8%B0%83%E5%BA%A6%E6%A1%86%E6%9E%B6"><span class="nav-number">2.2.1.2.</span> <span class="nav-text">注册调度框架</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%B0%83%E5%BA%A6%E9%98%9F%E5%88%97%E3%80%81%E7%BC%93%E5%AD%98"><span class="nav-number">2.2.2.</span> <span class="nav-text">调度队列、缓存</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%9F%A5%E8%AF%86%E6%89%A9%E5%B1%95"><span class="nav-number">3.</span> <span class="nav-text">知识扩展</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
