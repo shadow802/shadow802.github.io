@@ -20,12 +20,12 @@
     var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta name="description" content="K8s监控​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。 ​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。 基础概念（1）CRD（Custom Resource Definition） ​">
+  <meta name="description" content="K8s监控​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。 ​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。 基础概念（1）CRD（Custom Resource Definition）">
 <meta property="og:type" content="article">
 <meta property="og:title" content="监控技术-K8s + Promethues + Grafana方案实践">
 <meta property="og:url" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/index.html">
 <meta property="og:site_name" content="Shadow802">
-<meta property="og:description" content="K8s监控​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。 ​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。 基础概念（1）CRD（Custom Resource Definition） ​">
+<meta property="og:description" content="K8s监控​    提到监控，Prometheus已经是事实上的标准。我们将应用部署到K8s中后，需要借助于Prometheus对K8s集群，容器（数据库、中间件、应用），机器的硬件等进行监控，配置一定的告警规则。 ​    Promethues官方对K8s的监控进行了一定适配，首先了解一下K8s的基础概念。 基础概念（1）CRD（Custom Resource Definition）">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/prometheus-operator.png">
 <meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/01%E7%9B%91%E6%8E%A7%E6%8A%80%E6%9C%AF-K8s+Prometheus+Grafana%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-crd.jpg">

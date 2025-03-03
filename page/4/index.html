@@ -210,34 +210,14 @@
           <p>​    在网关一节提到，在网关上做好容错限流，能解决系统80%~90%的问题，更进一步，服务之间的调用也需要做好容错限流，避免因某个服务的问题拖垮其它服务。    </p>
 <h1 id="技术要求"><a href="#技术要求" class="headerlink" title="技术要求"></a>技术要求</h1><h2 id="熔断限流"><a href="#熔断限流" class="headerlink" title="熔断限流"></a>熔断限流</h2><p>​    熔断的实现，一般采用的是断路器的原理，当请求的错误数达到设定的阈值后，会直接返回或者调用用户自定义的降级函数；同时熔断应该具有自恢复能力，当经过一段时间后，服务恢复正常后，断路器会处于一种半打开（Half-Open）的状态，尝试再次打开。</p>
 <p>​    限流，主要是指对并发请求数的限制。</p>
-<h2 id="易于集成"><a href="#易于集成" class="headerlink" title="易于集成"></a>易于集成</h2><p>​    目前所采用的技术栈是Java Spring的体系，如果要在各服务中集成容错限流，要减少对业务的侵入，降低集成成本。</p>
-<h2 id="实时监控"><a href="#实时监控" class="headerlink" title="实时监控"></a>实时监控</h2><p>​    需要提供实时监控的UI界面，便于及时识别系统异常，同时提供一些关键指标的简单聚合，便于开发进行后续的服务优化。</p>
-<h1 id="技术选型"><a href="#技术选型" class="headerlink" title="技术选型"></a>技术选型</h1><p>​    目前对于容错限流的集成，主要是通过AOP、Filter、Interceptor等方式，目前调研的主要的组件如下：</p>
-<h2 id="Hystrix"><a href="#Hystrix" class="headerlink" title="Hystrix"></a>Hystrix</h2><p>​    Hystrix是Netflix开源的一款容错限流框架。主要是通过Filter、Interceptor、AOP这样的切面将用户调用封装在HystrixCommand中。通过信号量/线程池两种方式，在客户端实现对调用的保护。Hystrix阈值的判定通过10秒滚筒计算。可以通过Turbine对多个Hystrix聚合到Dashboard中展示。</p>
-<p>​    Hystrix工作流程（自适应的反馈机）：</p>
-<p>​    <img src="hystrix-workflow.png" alt="hystrix-workflow"></p>
-<p>​    Hystrix断路器的工作原理如下图：</p>
-<p><img src="hystrix-circuit-breaker.png" alt="hystrix-circuit-breaker"></p>
-<p>​    <a target="_blank" rel="noopener" href="https://github.com/Netflix/Hystrix">Hystrix Github</a>     目前已停止维护。</p>
-<h2 id="Sentinel"><a href="#Sentinel" class="headerlink" title="Sentinel"></a>Sentinel</h2><p>​    Sentinel与Hystrix在熔断限流的原则是一致的，Sentinel通过并发线程数进行限制、响应时间窗口对资源进行降级。Sentinel将服务定义为资源，任何一段代码、一个服务，只要是通过Sentinel API定义的代码，都是资源。</p>
-<p>​    <a target="_blank" rel="noopener" href="https://github.com/alibaba/Sentinel">Sentinel Guthub</a></p>
-<p>​    下面是在Spring Boot中使用OpenFeign通过注解使用Sentinel（<a target="_blank" rel="noopener" href="https://github.com/alibaba/spring-cloud-alibaba/tree/master/spring-cloud-alibaba-examples/sentinel-example/sentinel-feign-example">Sentinel OpenFeign Sample</a>）：</p>
-<p>使用OpenFeign调用demo-http-service的三个测试方法：正常返回，延时返回，错误返回。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@FeignClient(name = &quot;demo-http-service&quot;,  fallbackFactory = DemoHttpServiceFallbackFactory.class)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DemoHttpService</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@RequestMapping(value = &quot;/home&quot;, method = RequestMethod.GET)</span></span><br><span class="line">    <span class="function">String <span class="title">callHome</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@RequestMapping(value = &quot;/homeTimeout&quot;, method = RequestMethod.GET)</span></span><br><span class="line">    <span class="function">String <span class="title">callHomeTimeout</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@RequestMapping(value = &quot;/homeError&quot;, method = RequestMethod.GET)</span></span><br><span class="line">    <span class="function">String <span class="title">callHomeError</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoHttpServiceFallbackFactory</span> <span class="keyword">implements</span> <span class="title">FallbackFactory</span>&lt;<span class="title">DemoHttpServiceFallback</span>&gt; </span>&#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> DemoHttpServiceFallback <span class="title">create</span><span class="params">(Throwable throwable)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> DemoHttpServiceFallback(throwable);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoHttpServiceFallback</span> <span class="keyword">implements</span> <span class="title">DemoHttpService</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Throwable throwable;</span><br><span class="line"></span><br><span class="line">    DemoHttpServiceFallback(Throwable throwable) &#123;</span><br><span class="line">        <span class="keyword">this</span>.throwable = throwable;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">callHome</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;callHome!!!Fallback&quot;</span> + <span class="keyword">this</span>.throwable.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">callHomeTimeout</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;callHomeTimeout!!!Fallback&quot;</span> + <span class="keyword">this</span>.throwable.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">callHomeError</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;callHomeError!!!Fallback&quot;</span> + <span class="keyword">this</span>.throwable.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>​    </p>
-<p>​    <strong>这里注意在配置文件中启用：feign.sentinel.enabled=true</strong>        </p>
-<p>​    </p>
-<p>​    返回情况：</p>
-<p><img src="sentinel-sample-http-response.png" alt="image-20201107155404242"></p>
-<p>​    Sentinel Dashboard:</p>
-<p><img src="sentinel-dashboard.png" alt="image-20201107155724189"></p>
-<p>​    Hystrix已经停止更新，Sentinel功能强大，集成简易，建议选用Sentinel。</p>
-
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
       
     </div>
 
@@ -306,77 +286,14 @@
           <p>​    在微服务架构下，服务网关作为应用面向外部提供服务的第一道闸门，首当其冲。</p>
 <h1 id="技术要求"><a href="#技术要求" class="headerlink" title="技术要求"></a>技术要求</h1><p>​    服务网关需要具备的功能特性：</p>
 <h2 id="动态路由"><a href="#动态路由" class="headerlink" title="动态路由"></a>动态路由</h2><p>​    服务网关作为流量的入口，在生产环境中，不能频繁重启。但是实际开发中，难免要根据实际，例如新功能的开发、灰度发布、功能调试等情况，添加一些路由匹配、过滤器功能的配置，这些配置往往通过配置中心或者持久化存储存放，需要网关在正常对外提供服务的基础上（不重启）情况下，动态刷新自己的配置，及时生效。</p>
-<p>​    动态路由可以结合配置中心实现，例如：Apollo、Nacos等。配置中心一般提供 对动态配置获取机制的客户端集成。</p>
-<h2 id="安全认证"><a href="#安全认证" class="headerlink" title="安全认证"></a>安全认证</h2><p>​    服务网关，作为集中式入口，如果能在上面完成基本的认证，就可以大大降低子服务对认证的耦合，这种集中式的认证可以通过缓存进一步降低对认证服务器的压力。如果子服务对相互之间的鉴权不敏感，同样也可以在这上面进行集中式的鉴权。即使各子服务需要对流量单独鉴权，也可以统一在网关上进行认证，取出用户详细信息，通过JWT的技术放到请求的header中，向后传递，后续的子服务只需要基于JWT的信息进行独立的鉴权，不需要跟认证服务器交互。比较流行的认证鉴权框架：OAuth2+Spring Security+JWT。</p>
-<h2 id="容错限流"><a href="#容错限流" class="headerlink" title="容错限流"></a>容错限流</h2><p>​    容错限流是微服务中系统风险防范的的有效手段。一般地，在网关上做好容错限流能有效解决微服务中80%~90%的服务雪崩问题。作为流量集中式的总入口，必须做好对用户请求的应急处理。所以需要在网关上集成容错限流的技术。例如：Hystrix、Sentinel等。</p>
-<h2 id="负载均衡"><a href="#负载均衡" class="headerlink" title="负载均衡"></a>负载均衡</h2><p>​    负载均衡是微服务中实现高可用，大容量吞吐的基础手段，网关作为直面用户的第一道关卡，必须对用户的请求进行负载均衡。Ribbon目前是比较常用的负载均衡组件，在常见的网关中，都有集成实现。    </p>
-<h2 id="链路跟踪"><a href="#链路跟踪" class="headerlink" title="链路跟踪"></a>链路跟踪</h2><p>​    链路跟踪是微服务性能分析，定位错误重要的组成部分。网关作为用户请求的入口，是链路跟踪的起点，一般我们需要结合链路跟踪的组件，提前在网关上埋好点，然后将关键信息向下传递，链路跟踪的组件就可以帮我们聚合好相关信息，并提供相应的UI查询展示界面。这些数据信息对于开发定位问题，协助系统性能优化至关重要。常用的链路跟踪组件，例如：Cat、SkyWalking、Sleuth+ZipKin。</p>
-<h2 id="监控告警"><a href="#监控告警" class="headerlink" title="监控告警"></a>监控告警</h2><p>​    网关作为微服务面向用户的窗口，它的稳定性决定了整个微服务的可用性。因此必须对其进行全方位的监控。一般，我们除了对系统层进行监控外，还需要监控应用层的信息，例如：用户请求的延迟、吞吐、错误率等。对于改善用户体验，提高整个系统的稳定性，至关重要。Prometheus+Grafana，已经成为监控领域的事实标准，只需要被监控组件暴露端点，prometheus就可以主动抓取监控信息，如果我们采用Java Spring的技术栈，可以采用Spring Actuator主动暴露应用程序的监控数据。</p>
-<h2 id="日志收集"><a href="#日志收集" class="headerlink" title="日志收集"></a>日志收集</h2><p>​    日志收集常用的方案：ELK。</p>
-<h1 id="技术选型"><a href="#技术选型" class="headerlink" title="技术选型"></a>技术选型</h1><p>​    结合上述情况，目前考虑的几个网关主要如下：</p>
-<h2 id="Gateway"><a href="#Gateway" class="headerlink" title="Gateway"></a>Gateway</h2><p>​    Gateway是Spring Cloud在Zuul1.0停止维护后，转而研发的一款网关，基于Spring boot 2.x，Spring web-flux、Project Reactor。底层也是Netflix的运行时。提供了一些默认的路由断言工厂、路由过滤器，只需要简单的配置就可以使用，同时可以支持自定义路由过滤器。</p>
-<h2 id="Traefik"><a href="#Traefik" class="headerlink" title="Traefik"></a>Traefik</h2><p>​    Traefik被称作边界网关，云原生趋势下的一款网关，使用go语言编写，能够很好地与k8s结合，并通过一系列的Middleware，提供强大的网关配置功能。</p>
-<h2 id="Zuul"><a href="#Zuul" class="headerlink" title="Zuul"></a>Zuul</h2><p>​    目前Zuul1.x已经停止维护，Netflix转而研发Zuul2.x。Zuul2.x主要是一个异步IO的实现方式，性能略有提升，但是编程模型比较复杂，对于需要埋点的功能不友好，例如链路跟踪。</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>Gateway</th>
-<th>Traefik</th>
-<th>Zuul1.x</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>技术栈</td>
-<td>Java</td>
-<td>Golang</td>
-<td>Java</td>
-</tr>
-<tr>
-<td>动态路由</td>
-<td>yml配置文件（配置中心）</td>
-<td>K8s的CRD</td>
-<td>Groove动态编译执行</td>
-</tr>
-<tr>
-<td>安全认证</td>
-<td>自定义过滤器</td>
-<td>Auth Url 只提供200的正确返回</td>
-<td>自定义过滤器</td>
-</tr>
-<tr>
-<td>容错限流</td>
-<td>默认的过滤器</td>
-<td>Service Annotations</td>
-<td>自定义过滤器</td>
-</tr>
-<tr>
-<td>负载均衡</td>
-<td>配置url  lb:http://</td>
-<td>K8s的Service</td>
-<td>自定义过滤器</td>
-</tr>
-<tr>
-<td>链路跟踪</td>
-<td>自定义过滤器</td>
-<td>自定义Middleware</td>
-<td>自定义过滤器</td>
-</tr>
-<tr>
-<td>监控告警</td>
-<td>监控端点暴露</td>
-<td>监控端点暴露</td>
-<td>监控端点暴露</td>
-</tr>
-<tr>
-<td>日志收集</td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-</tbody></table>
-<p>​    综上所述，建议一选Gateway，技术栈友好，功能集成方便，定制开发成本低。二选Traefik，K8s友好，满足绝大多数功能，但是如果需要定制开发，需要熟悉Golang和K8s CRD的开发，成本较高。三选Zuul，2.x因为异步编程的模型比较复杂，性能提升有限，不建议采用；1.x技术栈友好，但是功能需要较多的客户端的集成工作，开发成本中等。</p>
-
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2020/11/05/01%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E6%9C%8D%E5%8A%A1%E7%BD%91%E5%85%B3/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
       
     </div>
 

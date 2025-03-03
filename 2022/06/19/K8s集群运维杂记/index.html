@@ -20,12 +20,12 @@
     var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta name="description" content="前言    最近在进行K8s运维时，遇到一些问题，特此记录，以备忘。 问题记录负载均衡选择    我们在原生集群中，集成了Nginx Ingress Controller，并使用了公有云上的CLB进行转发。从CLB到K8s集群中的Nginx Controller实例，目前主流上如下三种连接方式： HostNetwork    让Nginx Controller直接使用节点的网络。     这种方式">
+  <meta name="description" content="前言    最近在进行K8s运维时，遇到一些问题，特此记录，以备忘。 问题记录负载均衡选择    我们在原生集群中，集成了Nginx Ingress Controller，并使用了公有云上的CLB进行转发。从CLB到K8s集群中的Nginx Controller实例，目前主流上如下三种连接方式：">
 <meta property="og:type" content="article">
 <meta property="og:title" content="K8s集群运维杂记">
 <meta property="og:url" content="https://shadow802.gitee.io/2022/06/19/K8s%E9%9B%86%E7%BE%A4%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0/index.html">
 <meta property="og:site_name" content="Shadow802">
-<meta property="og:description" content="前言    最近在进行K8s运维时，遇到一些问题，特此记录，以备忘。 问题记录负载均衡选择    我们在原生集群中，集成了Nginx Ingress Controller，并使用了公有云上的CLB进行转发。从CLB到K8s集群中的Nginx Controller实例，目前主流上如下三种连接方式： HostNetwork    让Nginx Controller直接使用节点的网络。     这种方式">
+<meta property="og:description" content="前言    最近在进行K8s运维时，遇到一些问题，特此记录，以备忘。 问题记录负载均衡选择    我们在原生集群中，集成了Nginx Ingress Controller，并使用了公有云上的CLB进行转发。从CLB到K8s集群中的Nginx Controller实例，目前主流上如下三种连接方式：">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://shadow802.gitee.io/2022/06/19/K8s%E9%9B%86%E7%BE%A4%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0/curl-httpbin.png">
 <meta property="og:image" content="https://shadow802.gitee.io/2022/06/19/K8s%E9%9B%86%E7%BE%A4%E8%BF%90%E7%BB%B4%E6%9D%82%E8%AE%B0/drain-node.png">

@@ -20,12 +20,12 @@
     var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta name="description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。 ​    K8S聚合API的功能，提供了一种API的注册机制，使得API Server可以代理自定义指标的">
+  <meta name="description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Kubernetes-HPA方案实践">
 <meta property="og:url" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/index.html">
 <meta property="og:site_name" content="Shadow802">
-<meta property="og:description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。 ​    K8S聚合API的功能，提供了一种API的注册机制，使得API Server可以代理自定义指标的">
+<meta property="og:description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/hpa-scale.png">
 <meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/apiservice-metrics.jpg">
