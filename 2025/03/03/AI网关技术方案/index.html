@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    大模型风头正劲，不论是自建私有DeepSeek系列模型，还是商用的Qwen、ChatGPT等系列模型，均需要一层中间代理，去完成一些通用的能力：  屏蔽模型供应商API接口的调用差异，接口的规范，目前推荐统一使用OpenAI。  通过限流的方式保护自建服务，或是控制商用调用成本。  通过fallback在不同模型供应商之间切换，提供更佳的用户体验。  进行安全审查，杜绝非法访问。  R">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AI网关技术方案">
+<meta property="og:url" content="https://shadow802.gitee.io/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言    大模型风头正劲，不论是自建私有DeepSeek系列模型，还是商用的Qwen、ChatGPT等系列模型，均需要一层中间代理，去完成一些通用的能力：  屏蔽模型供应商API接口的调用差异，接口的规范，目前推荐统一使用OpenAI。  通过限流的方式保护自建服务，或是控制商用调用成本。  通过fallback在不同模型供应商之间切换，提供更佳的用户体验。  进行安全审查，杜绝非法访问。  R">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/higress-architecture.jpeg">
+<meta property="og:image" content="https://shadow802.gitee.io/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/higress-ratelimit-fallback.jpeg">
+<meta property="article:published_time" content="2025-03-03T05:51:01.925Z">
+<meta property="article:modified_time" content="2025-03-03T05:57:58.442Z">
+<meta property="article:author" content="Shadow802">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/higress-architecture.jpeg">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>AI网关技术方案 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AI网关技术方案
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2025-03-03 13:51:01 / 修改时间：13:57:58" itemprop="dateCreated datePublished" datetime="2025-03-03T13:51:01+08:00">2025-03-03</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    大模型风头正劲，不论是自建私有DeepSeek系列模型，还是商用的Qwen、ChatGPT等系列模型，均需要一层中间代理，去完成一些通用的能力：</p>
+<ol>
+<li><p>屏蔽模型供应商API接口的调用差异，接口的规范，目前推荐统一使用OpenAI。</p>
+</li>
+<li><p>通过限流的方式保护自建服务，或是控制商用调用成本。</p>
+</li>
+<li><p>通过fallback在不同模型供应商之间切换，提供更佳的用户体验。</p>
+</li>
+<li><p>进行安全审查，杜绝非法访问。</p>
+</li>
+<li><p>RAG、缓存、prompt增强、可观测性、agent等扩展能力。</p>
+</li>
+</ol>
+<p>    目前市面上关于AI网关的能力尚处于建设中，尚未有大规模成熟落地的方案。</p>
+<h1 id="技术方案"><a href="#技术方案" class="headerlink" title="技术方案"></a>技术方案</h1><h2 id="Higress"><a href="#Higress" class="headerlink" title="Higress"></a>Higress</h2><h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h3><p>    <a target="_blank" rel="noopener" href="https://github.com/alibaba/higress">higress</a>，不论之前开源的<a target="_blank" rel="noopener" href="https://github.com/higress-group/higress">云原生API网关</a>还是现在开源的<a target="_blank" rel="noopener" href="https://github.com/alibaba/higress">云原生AI网关</a>，本质上都来源于阿里内部的一套基于Envoy和Istio封装的内部网关，产品化为现在公有云上的<a target="_blank" rel="noopener" href="https://help.aliyun.com/zh/mse/product-overview/what-is-mse/?spm=5176.14952521.J_5253785160.5.767a23bcPEju4Z">微服务引擎MSE网关</a>或者是<a target="_blank" rel="noopener" href="https://help.aliyun.com/zh/api-gateway/product-overview/?spm=a2c4g.11186623.help-menu-29462.d_0.1ad074f4d70i5Z&scm=20140722.H_2833473._.OR_help-T_cn~zh-V_1">云原生API网关</a>，整体架构大约相同。</p>
+<h3 id="整体架构"><a href="#整体架构" class="headerlink" title="整体架构"></a>整体架构</h3><p><img src="higress-architecture.jpeg">     这套网关通过一套Higress自定义的CRD，使用controler内部转化为Istio的相关CRD，例如VirtualService、DestinationRule、ServiceEntry、Envoyfilter。大量依赖了Istio的相关能力，通过Istio的xDs协议，对Envoy进行了配置的个性化定制。</p>
+<p>    网关本身兼容K8s Ingress的绝大部分annotations，同时提供了higress.io/开头的自定义annotations，可与ingress的annotation互换使用，为了兼容使用Ingress annotation的用户，对目前Kubernetes Gateway API的兼容有限。</p>
+<p>    代码仓库中强依赖了Istio和Envoy的commit提交，并进行了部分patch修改。在Istio和envoy版本迭代升级方面，存在很大的问题。</p>
+<p>    适配了Dubbo、Nacos、Zookeeper、Consul等传统微服务框架和注册中心。</p>
+<p>    本次我们重点关注它的AI的网关能力。 </p>
+<h3 id="基础组件"><a href="#基础组件" class="headerlink" title="基础组件"></a>基础组件</h3><p>    higress主要包含三个组件：</p>
+<ul>
+<li><p>higress-controller</p>
+<p>K8s的controller，使用调谐，来完成Ingress或Higress CRD到Istio CRD的转变。</p>
+<p>可使用如下命令查看转换后的Istio资源对象，通过Istio dashboard envoy或者是hget dashboard envoy中的config_dump无法查看到。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl <span class="built_in">exec</span> higress-controller-657dfbf95c-j4bv2 -c higress-core -n higress-system -- curl http://127.0.0.1:8888/debug/configz | jq  | less</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>higress-gateway</p>
+<p>主要是Envoy，网关实例。</p>
+</li>
+<li><p>higress-console</p>
+<p>控制台，使用Java编写，封装控制台逻辑，例如fallback两条ingress的创建。</p>
+</li>
+</ul>
+<h3 id="核心功能"><a href="#核心功能" class="headerlink" title="核心功能"></a>核心功能</h3><p>    higress在之前的架构基础上提供了大量开箱即用的AI插件，来丰富网关的AI能力，具体可查看官方文档说明或者是<a target="_blank" rel="noopener" href="https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions">Github源代码库</a>。</p>
+<ul>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-dev/ai-agent/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-agent</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-provider/ai-cache/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-cache</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/others/ai-history/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-history</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/others/ai-intent/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-intent</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-dev/ai-json-resp/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-json-resp</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-provider/ai-prompt-decorator/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-prompt-decorator</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-dev/ai-prompt-template/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-prompt-template</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-provider/ai-proxy/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-proxy</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-consumer/ai-quota/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-quota</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/others/ai-rag/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-rag</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-provider/ai-security-guard/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-security-guard</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-o11y/ai-statistics/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-statistics</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-consumer/ai-token-ratelimit/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-token-ratelimit</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/others/ai-transformer/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-transformer</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://higress.cn/docs/latest/plugins/ai/api-consumer/ai-data-masking/?spm=36971b57.2993ea99.0.0.3e601fe8PY5RlA">ai-data-masking</a></p>
+</li>
+</ul>
+<p>    higress支持上传自己开发的wasm插件，相关封装和指导可参考<a target="_blank" rel="noopener" href="https://github.com/higress-group/higress-group.github.io/blob/main/src/content/docs/ebook/zh-cn/wasm14.md">系列文档</a></p>
+<h3 id="场景方案"><a href="#场景方案" class="headerlink" title="场景方案"></a>场景方案</h3><h4 id="限流-Fallback"><a href="#限流-Fallback" class="headerlink" title="限流+Fallback"></a>限流+Fallback</h4><p>    自建的大模型服务，受限于硬件资源，需要根据服务的容量采取限流来保护服务的稳定性，保障绝大多数用户的访问体验；供应商的模型服务，需要进行一定的成本控制，不能无限制调用。默认情况下，优先调用自建服务，在自建服务满负荷的情况下，有选择地分流至模型供应商。</p>
+<p>    目前开源的版本，暂不支持限流配置到服务。本次实验采用了二次转发的方式：</p>
+<ol>
+<li><p>第1条路由转发至自建大模型服务，并在该调路由上开启了ai-token-ratelimit插件，设置TPM=1。</p>
+</li>
+<li><p>第2条路由提供面向用户的消费者认证，并转发至第一条路由的域名：重写了Host，防止循环；配置了fallback到另一模型服务。</p>
+</li>
+</ol>
+<p>    上述功能，先通过higress自带的自带控制台配置，随后针对具体的资源进行调整。以下仅展示使用到的核心资源对象。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br><span class="line">205</span><br><span class="line">206</span><br><span class="line">207</span><br><span class="line">208</span><br><span class="line">209</span><br><span class="line">210</span><br><span class="line">211</span><br><span class="line">212</span><br><span class="line">213</span><br><span class="line">214</span><br><span class="line">215</span><br><span class="line">216</span><br><span class="line">217</span><br><span class="line">218</span><br><span class="line">219</span><br><span class="line">220</span><br><span class="line">221</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 第1条路由ingress， 最终会转化为Istio的VirtualService和DestinationRule</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">higress.io/comment:</span> <span class="string">PLEASE</span> <span class="string">DO</span> <span class="string">NOT</span> <span class="string">EDIT</span> <span class="string">DIRECTLY.</span> <span class="string">This</span> <span class="string">resource</span> <span class="string">is</span> <span class="string">managed</span> <span class="string">by</span> <span class="string">Higress.</span></span><br><span class="line">    <span class="attr">higress.io/destination:</span> <span class="string">llm-deepseek-v3-node-1.internal.static:80</span> <span class="comment"># 转发至自建DeepSeek-V3服务</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">higress.io/domain_deepseek-v3.shadow.io:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/internal:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/resource-definer:</span> <span class="string">higress</span></span><br><span class="line">    <span class="attr">ingress-class:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">ai-route-deepseek-v3.internal</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">higress-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ingressClassName:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">host:</span> <span class="string">deepseek-v3.shadow.io</span></span><br><span class="line">    <span class="attr">http:</span></span><br><span class="line">      <span class="attr">paths:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">backend:</span></span><br><span class="line">          <span class="attr">resource:</span></span><br><span class="line">            <span class="attr">apiGroup:</span> <span class="string">networking.higress.io</span></span><br><span class="line">            <span class="attr">kind:</span> <span class="string">McpBridge</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">default</span></span><br><span class="line">        <span class="attr">path:</span> <span class="string">/v1</span></span><br><span class="line">        <span class="attr">pathType:</span> <span class="string">Prefix</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 第2条路由ingress，最终会转化为Istio的VirtualService和DestinationRule</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">higress.io/comment:</span> <span class="string">PLEASE</span> <span class="string">DO</span> <span class="string">NOT</span> <span class="string">EDIT</span> <span class="string">DIRECTLY.</span> <span class="string">This</span> <span class="string">resource</span> <span class="string">is</span> <span class="string">managed</span> <span class="string">by</span> <span class="string">Higress.</span></span><br><span class="line">    <span class="attr">higress.io/destination:</span> <span class="string">llm-deepseek-v3.shadow.io.internal.dns:30100</span> <span class="comment"># 转发至第1条路由的域名</span></span><br><span class="line">    <span class="attr">higress.io/upstream-vhost:</span> <span class="string">deepseek-v3.shadow.io</span>  <span class="comment"># 重写Host防止发生环路</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">higress.io/domain_deepseek-r1.shadow.io:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/internal:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/resource-definer:</span> <span class="string">higress</span></span><br><span class="line">    <span class="attr">ingress-class:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">ai-route-deepseek-r1.internal</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">higress-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ingressClassName:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">host:</span> <span class="string">deepseek-r1.shadow.io</span></span><br><span class="line">    <span class="attr">http:</span></span><br><span class="line">      <span class="attr">paths:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">backend:</span></span><br><span class="line">          <span class="attr">resource:</span></span><br><span class="line">            <span class="attr">apiGroup:</span> <span class="string">networking.higress.io</span></span><br><span class="line">            <span class="attr">kind:</span> <span class="string">McpBridge</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">default</span></span><br><span class="line">        <span class="attr">path:</span> <span class="string">/v1</span></span><br><span class="line">        <span class="attr">pathType:</span> <span class="string">Prefix</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 第2条路由的fallback ingress（higress 控制台自动创建），最终会转化为Istio的VirtualService和DestinationRule</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">higress.io/comment:</span> <span class="string">PLEASE</span> <span class="string">DO</span> <span class="string">NOT</span> <span class="string">EDIT</span> <span class="string">DIRECTLY.</span> <span class="string">This</span> <span class="string">resource</span> <span class="string">is</span> <span class="string">managed</span> <span class="string">by</span> <span class="string">Higress.</span></span><br><span class="line">    <span class="attr">higress.io/destination:</span> <span class="string">llm-deepseek-r1-node-1.internal.static:80</span>  <span class="comment"># fallback至另一自建DeepSeek-R1服务</span></span><br><span class="line">    <span class="attr">higress.io/exact-match-header-x-higress-fallback-from:</span> <span class="string">ai-route-deepseek-r1.internal</span> <span class="comment"># 严格匹配fallback的请求header</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">higress.io/domain_deepseek-r1.shadow.io:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/internal:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/resource-definer:</span> <span class="string">higress</span></span><br><span class="line">    <span class="attr">ingress-class:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">ai-route-deepseek-r1.fallback.internal</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">higress-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ingressClassName:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">host:</span> <span class="string">deepseek-r1.shadow.io</span></span><br><span class="line">    <span class="attr">http:</span></span><br><span class="line">      <span class="attr">paths:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">backend:</span></span><br><span class="line">          <span class="attr">resource:</span></span><br><span class="line">            <span class="attr">apiGroup:</span> <span class="string">networking.higress.io</span></span><br><span class="line">            <span class="attr">kind:</span> <span class="string">McpBridge</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">default</span></span><br><span class="line">        <span class="attr">path:</span> <span class="string">/v1</span></span><br><span class="line">        <span class="attr">pathType:</span> <span class="string">Prefix</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># McpBridge是Higress用以接入外部服务的资源对象，最终会转化为Istio的ServiceEntry。</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.higress.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">McpBridge</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">default</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">higress-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">registries:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">domain:</span> <span class="number">10.163</span><span class="string">.xxx.xxx:40000</span>                  <span class="comment"># 自建DeepSeek-R1服务，用作Fallback</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">llm-deepseek-r1-node-1.internal</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">static</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">domain:</span> <span class="number">10.163</span><span class="string">.xxx.xxx:40000</span>                  <span class="comment"># 自建DeepSeek-V3服务，常规访问</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">llm-deepseek-v3-node-1.internal</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">static</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">domain:</span> <span class="string">deepseek-v3.shadow.io</span>                 <span class="comment"># 第1条路由注册的域名</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">llm-deepseek-v3.shadow.io.internal</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">30100</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">dns</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">domain:</span> <span class="string">r-xxxxxx.redis.rds.aliyuncs.com</span>  <span class="comment"># 限流使用的Redis</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">redis</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">6379</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">dns</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 触发fallback的Envoy核心配置，通过EnvoyFilter下发给Envoy</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.istio.io/v1alpha3</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">EnvoyFilter</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">higress.io/comment:</span> <span class="string">PLEASE</span> <span class="string">DO</span> <span class="string">NOT</span> <span class="string">EDIT</span> <span class="string">DIRECTLY.</span> <span class="string">This</span> <span class="string">resource</span> <span class="string">is</span> <span class="string">managed</span> <span class="string">by</span> <span class="string">Higress.</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">higress.io/internal:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/resource-definer:</span> <span class="string">higress</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">ai-route-deepseek-r1.internal</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">higress-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">configPatches:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">applyTo:</span> <span class="string">HTTP_ROUTE</span></span><br><span class="line">    <span class="attr">match:</span></span><br><span class="line">      <span class="attr">context:</span> <span class="string">GATEWAY</span></span><br><span class="line">      <span class="attr">routeConfiguration:</span></span><br><span class="line">        <span class="attr">vhost:</span></span><br><span class="line">          <span class="attr">route:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">ai-route-deepseek-r1.internal</span></span><br><span class="line">    <span class="attr">patch:</span></span><br><span class="line">      <span class="attr">operation:</span> <span class="string">MERGE</span></span><br><span class="line">      <span class="attr">value:</span></span><br><span class="line">        <span class="attr">typed_per_filter_config:</span></span><br><span class="line">          <span class="attr">envoy.filters.http.custom_response:</span></span><br><span class="line">            <span class="string">&#x27;@type&#x27;</span><span class="string">:</span> <span class="string">type.googleapis.com/udpa.type.v1.TypedStruct</span></span><br><span class="line">            <span class="attr">type_url:</span> <span class="string">type.googleapis.com/envoy.extensions.filters.http.custom_response.v3.CustomResponse</span></span><br><span class="line">            <span class="attr">value:</span></span><br><span class="line">              <span class="attr">custom_response_matcher:</span></span><br><span class="line">                <span class="attr">matcher_list:</span></span><br><span class="line">                  <span class="attr">matchers:</span></span><br><span class="line">                  <span class="bullet">-</span> <span class="attr">on_match:</span></span><br><span class="line">                      <span class="attr">action:</span></span><br><span class="line">                        <span class="attr">name:</span> <span class="string">action</span></span><br><span class="line">                        <span class="attr">typed_config:</span></span><br><span class="line">                          <span class="string">&#x27;@type&#x27;</span><span class="string">:</span> <span class="string">type.googleapis.com/udpa.type.v1.TypedStruct</span></span><br><span class="line">                          <span class="attr">type_url:</span> <span class="string">type.googleapis.com/envoy.extensions.http.custom_response.redirect_policy.v3.RedirectPolicy</span></span><br><span class="line">                          <span class="attr">value:</span></span><br><span class="line">                            <span class="attr">keep_original_response_code:</span> <span class="literal">false</span></span><br><span class="line">                            <span class="attr">max_internal_redirects:</span> <span class="number">10</span></span><br><span class="line">                            <span class="attr">only_redirect_upstream_code:</span> <span class="literal">false</span></span><br><span class="line">                            <span class="attr">request_headers_to_add:</span></span><br><span class="line">                            <span class="bullet">-</span> <span class="attr">append:</span> <span class="literal">false</span></span><br><span class="line">                              <span class="attr">header:</span></span><br><span class="line">                                <span class="attr">key:</span> <span class="string">x-higress-fallback-from</span></span><br><span class="line">                                <span class="attr">value:</span> <span class="string">ai-route-deepseek-r1.internal</span></span><br><span class="line">                            <span class="attr">response_headers_to_add:</span></span><br><span class="line">                            <span class="bullet">-</span> <span class="attr">append:</span> <span class="literal">false</span></span><br><span class="line">                              <span class="attr">header:</span></span><br><span class="line">                                <span class="attr">key:</span> <span class="string">x-higress-fallback-from</span></span><br><span class="line">                                <span class="attr">value:</span> <span class="string">ai-route-deepseek-r1.internal</span></span><br><span class="line">                            <span class="attr">use_original_request_body:</span> <span class="literal">true</span></span><br><span class="line">                            <span class="attr">use_original_request_uri:</span> <span class="literal">true</span></span><br><span class="line">                    <span class="attr">predicate:</span></span><br><span class="line">                      <span class="attr">or_matcher:</span></span><br><span class="line">                        <span class="attr">predicate:</span></span><br><span class="line">                        <span class="bullet">-</span> <span class="attr">single_predicate:</span></span><br><span class="line">                            <span class="attr">input:</span></span><br><span class="line">                              <span class="attr">name:</span> <span class="string">4xx_response</span></span><br><span class="line">                              <span class="attr">typed_config:</span></span><br><span class="line">                                <span class="string">&#x27;@type&#x27;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.type.matcher.v3.HttpResponseStatusCodeClassMatchInput</span></span><br><span class="line">                            <span class="attr">value_match:</span></span><br><span class="line">                              <span class="attr">exact:</span> <span class="string">4xx</span></span><br><span class="line">                        <span class="bullet">-</span> <span class="attr">single_predicate:</span></span><br><span class="line">                            <span class="attr">input:</span></span><br><span class="line">                              <span class="attr">name:</span> <span class="string">5xx_response</span></span><br><span class="line">                              <span class="attr">typed_config:</span></span><br><span class="line">                                <span class="string">&#x27;@type&#x27;</span><span class="string">:</span> <span class="string">type.googleapis.com/envoy.type.matcher.v3.HttpResponseStatusCodeClassMatchInput</span></span><br><span class="line">                            <span class="attr">value_match:</span></span><br><span class="line">                              <span class="attr">exact:</span> <span class="string">5xx</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># ai-token-ratelimit 插件配置，最终会转化为istio的WasmPlugin</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">extensions.higress.io/v1alpha1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">WasmPlugin</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-description:</span> <span class="string">Implement</span> <span class="string">token</span> <span class="string">rate</span> <span class="string">limiting</span> <span class="string">based</span> <span class="string">on</span> <span class="string">specific</span></span><br><span class="line">      <span class="string">keys,</span> <span class="string">where</span> <span class="string">the</span> <span class="string">key</span> <span class="string">source</span> <span class="string">can</span> <span class="string">be</span> <span class="string">URL</span> <span class="string">parameters,</span> <span class="string">HTTP</span> <span class="string">request</span> <span class="string">headers,</span> <span class="string">client</span></span><br><span class="line">      <span class="string">IP</span> <span class="string">addresses,</span> <span class="string">etc.</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-icon:</span> <span class="string">https://img.alicdn.com/imgextra/i1/O1CN018iKKih1iVx287RltL_!!6000000004419-2-tps-42-42.png</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-title:</span> <span class="string">AI</span> <span class="string">Token</span> <span class="string">Rate</span> <span class="string">Limit</span></span><br><span class="line">  <span class="attr">labels:</span></span><br><span class="line">    <span class="attr">higress.io/resource-definer:</span> <span class="string">higress</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-built-in:</span> <span class="string">&quot;true&quot;</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-category:</span> <span class="string">ai</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-name:</span> <span class="string">ai-token-ratelimit</span></span><br><span class="line">    <span class="attr">higress.io/wasm-plugin-version:</span> <span class="number">1.0</span><span class="number">.0</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">ai-token-ratelimit-1.0.0</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">higress-system</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">defaultConfigDisable:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">matchRules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">config:</span></span><br><span class="line">      <span class="attr">redis:</span>   <span class="comment"># 使用redis</span></span><br><span class="line">        <span class="attr">password:</span> <span class="string">password</span></span><br><span class="line">        <span class="attr">service_name:</span> <span class="string">redis.dns</span></span><br><span class="line">        <span class="attr">service_port:</span> <span class="number">6379</span></span><br><span class="line">        <span class="attr">username:</span> <span class="string">username</span></span><br><span class="line">      <span class="attr">rule_items:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">limit_by_consumer:</span> <span class="string">&quot;&quot;</span></span><br><span class="line">        <span class="attr">limit_keys:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">hwork</span></span><br><span class="line">          <span class="attr">token_per_minute:</span> <span class="number">1</span>     <span class="comment"># 当携带x-mse-consumer=hwork的请求头时，限制TPM=1，不影响当前请求，下一次请求会被阻断，返回429</span></span><br><span class="line">      <span class="attr">rule_name:</span> <span class="string">default_rule</span></span><br><span class="line">    <span class="attr">configDisable:</span> <span class="literal">false</span></span><br><span class="line">    <span class="attr">ingress:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">ai-route-deepseek-v3.internal</span> <span class="comment"># 按第1条路由的ingress name进行了配置，支持ingress和domain，开源不支持service</span></span><br><span class="line">  <span class="attr">phase:</span> <span class="string">UNSPECIFIED_PHASE</span></span><br><span class="line">  <span class="attr">priority:</span> <span class="number">600</span></span><br><span class="line">  <span class="attr">url:</span> <span class="string">oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-token-ratelimit:1.0.0</span></span><br></pre></td></tr></table></figure>
+
+<p>    测试结果：<br>                    <img title="" src="higress-ratelimit-fallback.jpeg" alt="loading-ag-445" width="815"></p>
+<blockquote>
+<p>这里使用了二次转发进行实验，自己转自己存在一定的性能开销，会增加网关的资源消耗。</p>
+<p>商业化的版本，插件中实现了按照服务限流的功能，可以配置在1条路由上。</p>
+<p>开源版本，目前WasmPlugins尚不支持Service这个字段的配置。</p>
+</blockquote>
+<h4 id="内容审查"><a href="#内容审查" class="headerlink" title="内容审查"></a>内容审查</h4><p>    可使用ai-security-guard配合<a target="_blank" rel="noopener" href="https://help.aliyun.com/product/28415.html?spm=5176.55804.J_5253785160.6.3fbf788dTBn902">阿里云的内容安全</a>服务，此插件目前需要将输出流转换为非流式响应。</p>
+<h2 id="Envoy-AI-Gateway"><a href="#Envoy-AI-Gateway" class="headerlink" title="Envoy AI Gateway"></a>Envoy AI Gateway</h2><p>    关注<a target="_blank" rel="noopener" href="https://github.com/envoyproxy/ai-gateway">envoy ai-gateway</a>项目，目前成熟度低。<a target="_blank" rel="noopener" href="https://aigateway.envoyproxy.io/docs">官方文档</a>。</p>
+<h2 id="Apisix-amp-API7"><a href="#Apisix-amp-API7" class="headerlink" title="Apisix &amp; API7"></a>Apisix &amp; API7</h2><p>    因前期采购了API7，并在各个集群有部署，希望复用基础组件，与API7共同实现AI网关的能力。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/10/22/Karmada-failover/" rel="prev" title="Karmada failover">
+      <i class="fa fa-chevron-left"></i> Karmada failover
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88"><span class="nav-number">2.</span> <span class="nav-text">技术方案</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Higress"><span class="nav-number">2.1.</span> <span class="nav-text">Higress</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">2.1.1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">2.1.2.</span> <span class="nav-text">整体架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E7%BB%84%E4%BB%B6"><span class="nav-number">2.1.3.</span> <span class="nav-text">基础组件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E5%8A%9F%E8%83%BD"><span class="nav-number">2.1.4.</span> <span class="nav-text">核心功能</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9C%BA%E6%99%AF%E6%96%B9%E6%A1%88"><span class="nav-number">2.1.5.</span> <span class="nav-text">场景方案</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%99%90%E6%B5%81-Fallback"><span class="nav-number">2.1.5.1.</span> <span class="nav-text">限流+Fallback</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%86%85%E5%AE%B9%E5%AE%A1%E6%9F%A5"><span class="nav-number">2.1.5.2.</span> <span class="nav-text">内容审查</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Envoy-AI-Gateway"><span class="nav-number">2.2.</span> <span class="nav-text">Envoy AI Gateway</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Apisix-amp-API7"><span class="nav-number">2.3.</span> <span class="nav-text">Apisix &amp; API7</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">32</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">60</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

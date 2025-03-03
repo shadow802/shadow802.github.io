@@ -160,6 +160,100 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/08/04/%E8%AE%B0%E4%B8%80%E6%AC%A1Golang%E7%8E%AF%E5%A2%83%E8%B0%83%E8%AF%95%E9%97%AE%E9%A2%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/08/04/%E8%AE%B0%E4%B8%80%E6%AC%A1Golang%E7%8E%AF%E5%A2%83%E8%B0%83%E8%AF%95%E9%97%AE%E9%A2%98/" class="post-title-link" itemprop="url">记一次Golang环境调试问题</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-08-04 00:00:00" itemprop="dateCreated datePublished" datetime="2021-08-04T00:00:00+08:00">2021-08-04</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Golang/" itemprop="url" rel="index"><span itemprop="name">Golang</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="问题现象"><a href="#问题现象" class="headerlink" title="问题现象"></a>问题现象</h2><p>​    在Goland编写Rest API发布到测试环境中（kubernetes的pod）后，发现有一个API查询不到数据，而且无任何异常日志。与本地测试情况不符。</p>
+<p>​    这批API承担的任务，都是根据前端请求的情况，通过httpclient调用harbor2.0的 API，然后将数据封装成已有的对象，返回给前端。因为本次做了Harbor的升级，为了减少前端的改动并同时兼容新旧版本Harbor的API，所以需要首先将数据反序列化成根据Harbor2.0 API返回值对应的数据结构，然后再转换成工程中为旧版本Harbor定义的数据结构。</p>
+<h2 id="原因排查"><a href="#原因排查" class="headerlink" title="原因排查"></a>原因排查</h2><p>​    一开始排查的方向首先是自己的代码是否与测试环境不一致，经多次重新发布，核实，证明本地代码与测试环境完全一致。</p>
+<p>​    后来不知到因为啥把焦点放在了harbor2.0的API上，是否在kubernetes容器化后，harbor2.0 api在windows和linux下返回的数据包的内容不相同或者是数据包内数据的key因为包含特殊字符，在不同操作系统下有差异。</p>
+<p>​    于是就想用tcpdump抓包看一下kubernetes中数据包的情况，但是因为harbor2.0的API是采用https的方式，无法解密，因此在需要为TLS解密的时候放弃了这条路。</p>
+<blockquote>
+<p>这里因为对tcpdump + wireshark 抓包分析包的实操能力不足，浪费了很多时间，这里既然发现了在不同平台的差异，为什么不考虑运行环境的差异，例如Golang的编译、运行环境。这样就能少走一些弯路了。</p>
+</blockquote>
+<p>​    转而使用在代码中http调用返回的地方，追加日志，打印http的body。将byte[]转换成string的方式来打印显示。</p>
+<p>​    意外发现，http body返回的数据格式与windows平台下的内容并无二致，证明与Harbor2.0 API并无关系，是代码中数据的反序列化出现了问题。</p>
+<p>​    这里的代码使用了json.Unmarshal的反序列化方法。通过在测试环境中追加日志，发现问题就在这里。</p>
+<p>​    后经在Goland中追踪json.Unmarshal的包，发现是Golang自带的包，才把问题定位在Golang的版本上，是否Golang的版本不同，测试环境上的Golang版本的反序列化方法存在bug？</p>
+<p>​    后经排查，果然，测试环境编译、运行环境的Golang版本是1.10.1。而自己本地的Golang版本是1.16.4。</p>
+<blockquote>
+<p>之前看一个帖子，说是可以使用kubectl debug调试kubernetes中Pod的环境问题。因为测试环境的镜像都是alpine镜像，缺少 tcpdump、curl这样的工具。于是便想通过这样的方式来使用这些工具。但是没有找到有效的攻略~</p>
+</blockquote>
+<h2 id="实例验证"><a href="#实例验证" class="headerlink" title="实例验证"></a>实例验证</h2><p>​    将测试环境的版本升上来后，问题得以解决。看上去似乎是1.10.1的json.Unmarshal方法存在bug。下面通过demo做进一步验证：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> main</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;encoding/json&quot;</span></span><br><span class="line">	<span class="string">&quot;fmt&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> VulnerabilityItem <span class="keyword">struct</span> &#123;</span><br><span class="line">	ID          <span class="keyword">string</span> <span class="string">`json:&quot;id&quot;`</span></span><br><span class="line">	Severity    <span class="keyword">string</span> <span class="string">`json:&quot;severity&quot;`</span></span><br><span class="line">	Pkg         <span class="keyword">string</span> <span class="string">`json:&quot;package&quot;`</span></span><br><span class="line">	Version     <span class="keyword">string</span> <span class="string">`json:&quot;version&quot;`</span></span><br><span class="line">	Description <span class="keyword">string</span> <span class="string">`json:&quot;description&quot;`</span></span><br><span class="line">	Link        <span class="keyword">string</span> <span class="string">`json:&quot;link&quot;`</span></span><br><span class="line">	Fixed       <span class="keyword">string</span> <span class="string">`json:&quot;fixedVersion,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">	source :=</span><br><span class="line"><span class="string">`&#123;</span></span><br><span class="line"><span class="string">	&quot;application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0&quot;: &#123;</span></span><br><span class="line"><span class="string">		&quot;vulnerabilities&quot;: [&#123;</span></span><br><span class="line"><span class="string">			&quot;id&quot;: &quot;CVE-2017-8105&quot;,</span></span><br><span class="line"><span class="string">			&quot;package&quot;: &quot;freetype&quot;,</span></span><br><span class="line"><span class="string">			&quot;version&quot;: &quot;2.7-r1&quot;,</span></span><br><span class="line"><span class="string">			&quot;fix_version&quot;: &quot;2.7.1-r1&quot;,</span></span><br><span class="line"><span class="string">			&quot;severity&quot;: &quot;Critical&quot;,</span></span><br><span class="line"><span class="string">			&quot;description&quot;: &quot;FreeType 2 before 2017-03-24 has an out-of-bounds write caused by a heap-based buffer overflow related to the t1_decoder_parse_charstrings function in psaux/t1decode.c.&quot;,</span></span><br><span class="line"><span class="string">			&quot;links&quot;: [&quot;https://avd.aquasec.com/nvd/cve-2017-8105&quot;],</span></span><br><span class="line"><span class="string">			&quot;artifact_digests&quot;: [&quot;sha256:84ac8884cab3b1abbfce0e85d4c32dafd8deb41652a9d54696f17d274dfc8ad0&quot;],</span></span><br><span class="line"><span class="string">			&quot;preferred_cvss&quot;: &#123;</span></span><br><span class="line"><span class="string">				&quot;score_v3&quot;: 9.8,</span></span><br><span class="line"><span class="string">				&quot;score_v2&quot;: 7.5,</span></span><br><span class="line"><span class="string">				&quot;vector_v3&quot;: &quot;CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H&quot;,</span></span><br><span class="line"><span class="string">				&quot;vector_v2&quot;: &quot;AV:N/AC:L/Au:N/C:P/I:P/A:P&quot;</span></span><br><span class="line"><span class="string">			&#125;,</span></span><br><span class="line"><span class="string">			&quot;cwe_ids&quot;: [&quot;CWE-787&quot;],</span></span><br><span class="line"><span class="string">			&quot;vendor_attributes&quot;: &#123;</span></span><br><span class="line"><span class="string">				&quot;CVSS&quot;: &#123;</span></span><br><span class="line"><span class="string">					&quot;nvd&quot;: &#123;</span></span><br><span class="line"><span class="string">						&quot;V2Score&quot;: 7.5,</span></span><br><span class="line"><span class="string">						&quot;V2Vector&quot;: &quot;AV:N/AC:L/Au:N/C:P/I:P/A:P&quot;,</span></span><br><span class="line"><span class="string">						&quot;V3Score&quot;: 9.8,</span></span><br><span class="line"><span class="string">						&quot;V3Vector&quot;: &quot;CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H&quot;</span></span><br><span class="line"><span class="string">					&#125;,</span></span><br><span class="line"><span class="string">					&quot;redhat&quot;: &#123;</span></span><br><span class="line"><span class="string">						&quot;V3Score&quot;: 7,</span></span><br><span class="line"><span class="string">						&quot;V3Vector&quot;: &quot;CVSS:3.0/AV:L/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:H&quot;</span></span><br><span class="line"><span class="string">					&#125;</span></span><br><span class="line"><span class="string">				&#125;</span></span><br><span class="line"><span class="string">			&#125;</span></span><br><span class="line"><span class="string">		&#125;, &#123;</span></span><br><span class="line"><span class="string">			&quot;id&quot;: &quot;CVE-2017-8287&quot;,</span></span><br><span class="line"><span class="string">			&quot;package&quot;: &quot;freetype&quot;,</span></span><br><span class="line"><span class="string">			&quot;version&quot;: &quot;2.7-r1&quot;,</span></span><br><span class="line"><span class="string">			&quot;fix_version&quot;: &quot;2.7.1-r1&quot;,</span></span><br><span class="line"><span class="string">			&quot;severity&quot;: &quot;Critical&quot;,</span></span><br><span class="line"><span class="string">			&quot;description&quot;: &quot;FreeType 2 before 2017-03-26 has an out-of-bounds write caused by a heap-based buffer overflow related to the t1_builder_close_contour function in psaux/psobjs.c.&quot;,</span></span><br><span class="line"><span class="string">			&quot;links&quot;: [&quot;https://avd.aquasec.com/nvd/cve-2017-8287&quot;],</span></span><br><span class="line"><span class="string">			&quot;artifact_digests&quot;: [&quot;sha256:84ac8884cab3b1abbfce0e85d4c32dafd8deb41652a9d54696f17d274dfc8ad0&quot;],</span></span><br><span class="line"><span class="string">			&quot;preferred_cvss&quot;: &#123;</span></span><br><span class="line"><span class="string">				&quot;score_v3&quot;: 9.8,</span></span><br><span class="line"><span class="string">				&quot;score_v2&quot;: 7.5,</span></span><br><span class="line"><span class="string">				&quot;vector_v3&quot;: &quot;CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H&quot;,</span></span><br><span class="line"><span class="string">				&quot;vector_v2&quot;: &quot;AV:N/AC:L/Au:N/C:P/I:P/A:P&quot;</span></span><br><span class="line"><span class="string">			&#125;,</span></span><br><span class="line"><span class="string">			&quot;cwe_ids&quot;: [&quot;CWE-119&quot;],</span></span><br><span class="line"><span class="string">			&quot;vendor_attributes&quot;: &#123;</span></span><br><span class="line"><span class="string">				&quot;CVSS&quot;: &#123;</span></span><br><span class="line"><span class="string">					&quot;nvd&quot;: &#123;</span></span><br><span class="line"><span class="string">						&quot;V2Score&quot;: 7.5,</span></span><br><span class="line"><span class="string">						&quot;V2Vector&quot;: &quot;AV:N/AC:L/Au:N/C:P/I:P/A:P&quot;,</span></span><br><span class="line"><span class="string">						&quot;V3Score&quot;: 9.8,</span></span><br><span class="line"><span class="string">						&quot;V3Vector&quot;: &quot;CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H&quot;</span></span><br><span class="line"><span class="string">					&#125;,</span></span><br><span class="line"><span class="string">					&quot;redhat&quot;: &#123;</span></span><br><span class="line"><span class="string">						&quot;V3Score&quot;: 7,</span></span><br><span class="line"><span class="string">						&quot;V3Vector&quot;: &quot;CVSS:3.0/AV:L/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:H&quot;</span></span><br><span class="line"><span class="string">					&#125;</span></span><br><span class="line"><span class="string">				&#125;</span></span><br><span class="line"><span class="string">			&#125;</span></span><br><span class="line"><span class="string">		&#125;]</span></span><br><span class="line"><span class="string">	&#125;</span></span><br><span class="line"><span class="string">&#125;`</span></span><br><span class="line"></span><br><span class="line">	vulnerability := <span class="keyword">struct</span> &#123;</span><br><span class="line">		Mime <span class="keyword">struct</span>&#123;</span><br><span class="line">			Vulnerabilities []VulnerabilityItem <span class="string">`json:&quot;vulnerabilities&quot;`</span></span><br><span class="line">		&#125; <span class="string">`json:&quot;application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0&quot;`</span></span><br><span class="line">	&#125;&#123;&#125;</span><br><span class="line"></span><br><span class="line">	err := json.Unmarshal([]<span class="keyword">byte</span>(source), &amp;vulnerability)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(err)</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	fmt.Printf(<span class="string">&quot;vulnerability: %s\n&quot;</span>, vulnerability)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	source = <span class="string">`&#123;&quot;nam/.+;=e&quot;:&quot;shadow&quot;&#125;`</span></span><br><span class="line"></span><br><span class="line">	shadow := <span class="keyword">struct</span> &#123;</span><br><span class="line">		Name <span class="keyword">string</span> <span class="string">`json:&quot;nam/.+;=e&quot;`</span></span><br><span class="line">	&#125;&#123;&#125;</span><br><span class="line"></span><br><span class="line">	err = json.Unmarshal([]<span class="keyword">byte</span>(source), &amp;shadow)</span><br><span class="line">	<span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(err)</span><br><span class="line">	&#125;</span><br><span class="line">	fmt.Printf(<span class="string">&quot;shadow: %s\n&quot;</span>, shadow)</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>​    首先使用了问题API中一段数据，进行测试情况还原，然后自己编写了demo数据，使用测试环境的镜像，直接执行</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 将代码挂载进容器，执行，观察打印的反序列化方法</span></span><br><span class="line">docker run --name=shadow -v /root/windows/shadow/practice/basic:/basic  reg.xxxxx.net/library/golang:1.10.1-alpine3.7  go run /basic/unmarshal.go</span><br></pre></td></tr></table></figure>
+
+<p>​    通过不断调整反序列化使用的key的特殊字符，最后发现，<strong>Golang 1.10.1 的json.Unmarshal方法，当key中含有”;”时，无法正确反序列化数据，而且不报错。最后反序列化的结果是空对象。</strong></p>
+<blockquote>
+<p>鉴于Golang 1.10.1的版本过低，加上本次发现的bug，目前将计划提出将相应工程的Golang版本升级到1.16.4。</p>
+</blockquote>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/07/31/Kubernetes-Operator/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1633,102 +1727,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/" class="post-title-link" itemprop="url">微服务技术-容错限流</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2020-11-07 00:00:00" itemprop="dateCreated datePublished" datetime="2020-11-07T00:00:00+08:00">2020-11-07</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" itemprop="url" rel="index"><span itemprop="name">微服务</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>​    在网关一节提到，在网关上做好容错限流，能解决系统80%~90%的问题，更进一步，服务之间的调用也需要做好容错限流，避免因某个服务的问题拖垮其它服务。    </p>
-<h1 id="技术要求"><a href="#技术要求" class="headerlink" title="技术要求"></a>技术要求</h1><h2 id="熔断限流"><a href="#熔断限流" class="headerlink" title="熔断限流"></a>熔断限流</h2><p>​    熔断的实现，一般采用的是断路器的原理，当请求的错误数达到设定的阈值后，会直接返回或者调用用户自定义的降级函数；同时熔断应该具有自恢复能力，当经过一段时间后，服务恢复正常后，断路器会处于一种半打开（Half-Open）的状态，尝试再次打开。</p>
-<p>​    限流，主要是指对并发请求数的限制。</p>
-<h2 id="易于集成"><a href="#易于集成" class="headerlink" title="易于集成"></a>易于集成</h2><p>​    目前所采用的技术栈是Java Spring的体系，如果要在各服务中集成容错限流，要减少对业务的侵入，降低集成成本。</p>
-<h2 id="实时监控"><a href="#实时监控" class="headerlink" title="实时监控"></a>实时监控</h2><p>​    需要提供实时监控的UI界面，便于及时识别系统异常，同时提供一些关键指标的简单聚合，便于开发进行后续的服务优化。</p>
-<h1 id="技术选型"><a href="#技术选型" class="headerlink" title="技术选型"></a>技术选型</h1><p>​    目前对于容错限流的集成，主要是通过AOP、Filter、Interceptor等方式，目前调研的主要的组件如下：</p>
-<h2 id="Hystrix"><a href="#Hystrix" class="headerlink" title="Hystrix"></a>Hystrix</h2><p>​    Hystrix是Netflix开源的一款容错限流框架。主要是通过Filter、Interceptor、AOP这样的切面将用户调用封装在HystrixCommand中。通过信号量/线程池两种方式，在客户端实现对调用的保护。Hystrix阈值的判定通过10秒滚筒计算。可以通过Turbine对多个Hystrix聚合到Dashboard中展示。</p>
-<p>​    Hystrix工作流程（自适应的反馈机）：</p>
-<p>​    <img src="hystrix-workflow.png" alt="hystrix-workflow"></p>
-<p>​    Hystrix断路器的工作原理如下图：</p>
-<p><img src="hystrix-circuit-breaker.png" alt="hystrix-circuit-breaker"></p>
-<p>​    <a target="_blank" rel="noopener" href="https://github.com/Netflix/Hystrix">Hystrix Github</a>     目前已停止维护。</p>
-<h2 id="Sentinel"><a href="#Sentinel" class="headerlink" title="Sentinel"></a>Sentinel</h2><p>​    Sentinel与Hystrix在熔断限流的原则是一致的，Sentinel通过并发线程数进行限制、响应时间窗口对资源进行降级。Sentinel将服务定义为资源，任何一段代码、一个服务，只要是通过Sentinel API定义的代码，都是资源。</p>
-<p>​    <a target="_blank" rel="noopener" href="https://github.com/alibaba/Sentinel">Sentinel Guthub</a></p>
-<p>​    下面是在Spring Boot中使用OpenFeign通过注解使用Sentinel（<a target="_blank" rel="noopener" href="https://github.com/alibaba/spring-cloud-alibaba/tree/master/spring-cloud-alibaba-examples/sentinel-example/sentinel-feign-example">Sentinel OpenFeign Sample</a>）：</p>
-<p>使用OpenFeign调用demo-http-service的三个测试方法：正常返回，延时返回，错误返回。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@FeignClient(name = &quot;demo-http-service&quot;,  fallbackFactory = DemoHttpServiceFallbackFactory.class)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DemoHttpService</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@RequestMapping(value = &quot;/home&quot;, method = RequestMethod.GET)</span></span><br><span class="line">    <span class="function">String <span class="title">callHome</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@RequestMapping(value = &quot;/homeTimeout&quot;, method = RequestMethod.GET)</span></span><br><span class="line">    <span class="function">String <span class="title">callHomeTimeout</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@RequestMapping(value = &quot;/homeError&quot;, method = RequestMethod.GET)</span></span><br><span class="line">    <span class="function">String <span class="title">callHomeError</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Component</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoHttpServiceFallbackFactory</span> <span class="keyword">implements</span> <span class="title">FallbackFactory</span>&lt;<span class="title">DemoHttpServiceFallback</span>&gt; </span>&#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> DemoHttpServiceFallback <span class="title">create</span><span class="params">(Throwable throwable)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> DemoHttpServiceFallback(throwable);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoHttpServiceFallback</span> <span class="keyword">implements</span> <span class="title">DemoHttpService</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> Throwable throwable;</span><br><span class="line"></span><br><span class="line">    DemoHttpServiceFallback(Throwable throwable) &#123;</span><br><span class="line">        <span class="keyword">this</span>.throwable = throwable;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">callHome</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;callHome!!!Fallback&quot;</span> + <span class="keyword">this</span>.throwable.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">callHomeTimeout</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;callHomeTimeout!!!Fallback&quot;</span> + <span class="keyword">this</span>.throwable.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">callHomeError</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;callHomeError!!!Fallback&quot;</span> + <span class="keyword">this</span>.throwable.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>​    </p>
-<p>​    <strong>这里注意在配置文件中启用：feign.sentinel.enabled=true</strong>        </p>
-<p>​    </p>
-<p>​    返回情况：</p>
-<p><img src="sentinel-sample-http-response.png" alt="image-20201107155404242"></p>
-<p>​    Sentinel Dashboard:</p>
-<p><img src="sentinel-dashboard.png" alt="image-20201107155724189"></p>
-<p>​    Hystrix已经停止更新，Sentinel功能强大，集成简易，建议选用Sentinel。</p>
-
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1798,7 +1796,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">31</span>
+          <span class="site-state-item-count">32</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
