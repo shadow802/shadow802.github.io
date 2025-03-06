@@ -17,40 +17,40 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="前言人工智能    人工智能（全称 Artificial Intelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。     AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。 机器学习">
 <meta property="og:type" content="article">
 <meta property="og:title" content="初识机器学习">
-<meta property="og:url" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/index.html">
-<meta property="og:site_name" content="Shadow802">
+<meta property="og:url" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
 <meta property="og:description" content="前言人工智能    人工智能（全称 Artificial Intelligence）是一个构建能够推理、学习和行动的计算机和机器的科学领域，这种推理、学习和行动通常需要人类智力，或者涉及超出人类分析能力的数据规模。     AI 是一个广博的领域，涵盖许多不同的学科，包括计算机科学、数据分析和统计、硬件和软件工程、语言学、神经学，甚至哲学和心理学。 机器学习">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/cross-validation.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/linear-regression-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-border.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/MLP.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neural-networks.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/M-P.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/activation-function.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/roc-auc.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svm-roc-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svc-rf-roc-plot.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/k-fold-CV.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/cross-validation.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/linear-regression-plot.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-plot.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/voting-classifier-border.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/MLP.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neural-networks.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/M-P.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/activation-function.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/neuron-network-demo-plot.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/roc-auc.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svm-roc-plot.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/svc-rf-roc-plot.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/k-fold-CV.jpg">
 <meta property="article:published_time" content="2023-12-24T16:00:00.000Z">
 <meta property="article:modified_time" content="2023-12-24T16:00:00.000Z">
-<meta property="article:author" content="Shadow802">
+<meta property="article:author" content="Shadow">
 <meta property="article:tag" content="ML">
 <meta property="article:tag" content="AI">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
+<meta name="twitter:image" content="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/overfitting.jpg">
 
-<link rel="canonical" href="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
+<link rel="canonical" href="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
 
 
 <script id="page-configurations">
@@ -63,7 +63,7 @@
   };
 </script>
 
-  <title>初识机器学习 | Shadow802</title>
+  <title>初识机器学习 | 人生如梦 对酒当歌</title>
   
 
 
@@ -114,7 +114,7 @@
 
     <a href="/" class="brand" rel="start">
       <span class="logo-line-before"><i></i></span>
-      <h1 class="site-title">Shadow802</h1>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
       <span class="logo-line-after"><i></i></span>
     </a>
   </div>
@@ -183,16 +183,16 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="Shadow">
       <meta itemprop="description" content="">
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
@@ -437,7 +437,7 @@
 
       <div class="site-overview-wrap sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
-  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <p class="site-author-name" itemprop="name">Shadow</p>
   <div class="site-description" itemprop="description"></div>
 </div>
 <div class="site-state-wrap motion-element">
@@ -489,7 +489,7 @@
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
-  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
 </div>
 
 <div class="powered-by">

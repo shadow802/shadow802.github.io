@@ -17,31 +17,31 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="​    本文讨论的问题，服务共享平台需要大量动态发布Rest Server，目前首先考虑采用熟悉的技术栈Spring Boot 配合容器在K8s部署实现。在不考虑服务本身访问产生数据流量的情况下（抗流量，想通过副本扩展来应对），测试CPU、内存的消耗情况。         ​    主要分为两部分： ​        （1）基于《网关集成实践》中的设计，数据服务的Rest Server的职责，主">
 <meta property="og:type" content="article">
 <meta property="og:title" content="微服务技术-K8s容器资源评测">
-<meta property="og:url" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/index.html">
-<meta property="og:site_name" content="Shadow802">
+<meta property="og:url" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
 <meta property="og:description" content="​    本文讨论的问题，服务共享平台需要大量动态发布Rest Server，目前首先考虑采用熟悉的技术栈Spring Boot 配合容器在K8s部署实现。在不考虑服务本身访问产生数据流量的情况下（抗流量，想通过副本扩展来应对），测试CPU、内存的消耗情况。         ​    主要分为两部分： ​        （1）基于《网关集成实践》中的设计，数据服务的Rest Server的职责，主">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-java-version.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-OOMKilled.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-spring-limit.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-tomcat-jvm.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-servlet-limit.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-java-version.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-OOMKilled.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-spring-limit.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-tomcat-jvm.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-servlet-limit.jpg">
 <meta property="article:published_time" content="2020-12-03T16:00:00.000Z">
 <meta property="article:modified_time" content="2020-12-03T16:00:00.000Z">
-<meta property="article:author" content="Shadow802">
+<meta property="article:author" content="Shadow">
 <meta property="article:tag" content="Kubernetes">
 <meta property="article:tag" content="Docker">
 <meta property="article:tag" content="Java">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-java-version.jpg">
+<meta name="twitter:image" content="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/container-java-version.jpg">
 
-<link rel="canonical" href="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/">
+<link rel="canonical" href="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/">
 
 
 <script id="page-configurations">
@@ -54,7 +54,7 @@
   };
 </script>
 
-  <title>微服务技术-K8s容器资源评测 | Shadow802</title>
+  <title>微服务技术-K8s容器资源评测 | 人生如梦 对酒当歌</title>
   
 
 
@@ -105,7 +105,7 @@
 
     <a href="/" class="brand" rel="start">
       <span class="logo-line-before"><i></i></span>
-      <h1 class="site-title">Shadow802</h1>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
       <span class="logo-line-after"><i></i></span>
     </a>
   </div>
@@ -174,16 +174,16 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="Shadow">
       <meta itemprop="description" content="">
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
@@ -345,7 +345,7 @@
 
       <div class="site-overview-wrap sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
-  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <p class="site-author-name" itemprop="name">Shadow</p>
   <div class="site-description" itemprop="description"></div>
 </div>
 <div class="site-state-wrap motion-element">
@@ -397,7 +397,7 @@
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
-  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
 </div>
 
 <div class="powered-by">

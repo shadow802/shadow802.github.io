@@ -17,28 +17,28 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="​    在网关一节提到，在网关上做好容错限流，能解决系统80%~90%的问题，更进一步，服务之间的调用也需要做好容错限流，避免因某个服务的问题拖垮其它服务。     技术要求熔断限流​    熔断的实现，一般采用的是断路器的原理，当请求的错误数达到设定的阈值后，会直接返回或者调用用户自定义的降级函数；同时熔断应该具有自恢复能力，当经过一段时间后，服务恢复正常后，断路器会处于一种半打开（Half-">
 <meta property="og:type" content="article">
 <meta property="og:title" content="微服务技术-容错限流">
-<meta property="og:url" content="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/index.html">
-<meta property="og:site_name" content="Shadow802">
+<meta property="og:url" content="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
 <meta property="og:description" content="​    在网关一节提到，在网关上做好容错限流，能解决系统80%~90%的问题，更进一步，服务之间的调用也需要做好容错限流，避免因某个服务的问题拖垮其它服务。     技术要求熔断限流​    熔断的实现，一般采用的是断路器的原理，当请求的错误数达到设定的阈值后，会直接返回或者调用用户自定义的降级函数；同时熔断应该具有自恢复能力，当经过一段时间后，服务恢复正常后，断路器会处于一种半打开（Half-">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/hystrix-workflow.png">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/hystrix-circuit-breaker.png">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/sentinel-sample-http-response.png">
-<meta property="og:image" content="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/sentinel-dashboard.png">
+<meta property="og:image" content="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/hystrix-workflow.png">
+<meta property="og:image" content="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/hystrix-circuit-breaker.png">
+<meta property="og:image" content="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/sentinel-sample-http-response.png">
+<meta property="og:image" content="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/sentinel-dashboard.png">
 <meta property="article:published_time" content="2020-11-06T16:00:00.000Z">
 <meta property="article:modified_time" content="2020-11-06T16:00:00.000Z">
-<meta property="article:author" content="Shadow802">
+<meta property="article:author" content="Shadow">
 <meta property="article:tag" content="容错限流">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/hystrix-workflow.png">
+<meta name="twitter:image" content="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/hystrix-workflow.png">
 
-<link rel="canonical" href="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/">
+<link rel="canonical" href="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/">
 
 
 <script id="page-configurations">
@@ -51,7 +51,7 @@
   };
 </script>
 
-  <title>微服务技术-容错限流 | Shadow802</title>
+  <title>微服务技术-容错限流 | 人生如梦 对酒当歌</title>
   
 
 
@@ -102,7 +102,7 @@
 
     <a href="/" class="brand" rel="start">
       <span class="logo-line-before"><i></i></span>
-      <h1 class="site-title">Shadow802</h1>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
       <span class="logo-line-after"><i></i></span>
     </a>
   </div>
@@ -171,16 +171,16 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2020/11/07/04%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-%E5%AE%B9%E9%94%99%E9%99%90%E6%B5%81/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="Shadow">
       <meta itemprop="description" content="">
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
@@ -336,7 +336,7 @@
 
       <div class="site-overview-wrap sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
-  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <p class="site-author-name" itemprop="name">Shadow</p>
   <div class="site-description" itemprop="description"></div>
 </div>
 <div class="site-state-wrap motion-element">
@@ -388,7 +388,7 @@
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
-  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
 </div>
 
 <div class="powered-by">

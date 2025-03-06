@@ -17,29 +17,29 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="​    理解Kubernetes的Informer机制，对于基于Kubernetes作二次开发，编写一些符合业务场景的controller至关重要。本文通过梳理Kubernetes的controller-manager的实现，对于深入理解使用Informer给予一些启发。 组件介绍​    kube-controller-manager是Kubernetes中controller模式的实现者，承">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Kubernetes-源码分析kube-controller-manager">
-<meta property="og:url" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/index.html">
-<meta property="og:site_name" content="Shadow802">
+<meta property="og:url" content="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
 <meta property="og:description" content="​    理解Kubernetes的Informer机制，对于基于Kubernetes作二次开发，编写一些符合业务场景的controller至关重要。本文通过梳理Kubernetes的controller-manager的实现，对于深入理解使用Informer给予一些启发。 组件介绍​    kube-controller-manager是Kubernetes中controller模式的实现者，承">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/code-architecture.png">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/Kube-Controller-Manager.png">
+<meta property="og:image" content="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/code-architecture.png">
+<meta property="og:image" content="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/Kube-Controller-Manager.png">
 <meta property="article:published_time" content="2021-10-15T16:00:00.000Z">
 <meta property="article:modified_time" content="2021-10-15T16:00:00.000Z">
-<meta property="article:author" content="Shadow802">
+<meta property="article:author" content="Shadow">
 <meta property="article:tag" content="kube-controller-manager源码">
 <meta property="article:tag" content="informer">
 <meta property="article:tag" content="indexer">
 <meta property="article:tag" content="delta FIFO">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/code-architecture.png">
+<meta name="twitter:image" content="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/code-architecture.png">
 
-<link rel="canonical" href="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
+<link rel="canonical" href="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
 
 
 <script id="page-configurations">
@@ -52,7 +52,7 @@
   };
 </script>
 
-  <title>Kubernetes-源码分析kube-controller-manager | Shadow802</title>
+  <title>Kubernetes-源码分析kube-controller-manager | 人生如梦 对酒当歌</title>
   
 
 
@@ -103,7 +103,7 @@
 
     <a href="/" class="brand" rel="start">
       <span class="logo-line-before"><i></i></span>
-      <h1 class="site-title">Shadow802</h1>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
       <span class="logo-line-after"><i></i></span>
     </a>
   </div>
@@ -172,16 +172,16 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="Shadow">
       <meta itemprop="description" content="">
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
@@ -365,7 +365,7 @@
 
       <div class="site-overview-wrap sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
-  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <p class="site-author-name" itemprop="name">Shadow</p>
   <div class="site-description" itemprop="description"></div>
 </div>
 <div class="site-state-wrap motion-element">
@@ -417,7 +417,7 @@
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
-  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
 </div>
 
 <div class="powered-by">

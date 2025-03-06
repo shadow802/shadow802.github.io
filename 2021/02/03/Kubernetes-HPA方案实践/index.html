@@ -17,34 +17,34 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Kubernetes-HPA方案实践">
-<meta property="og:url" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/index.html">
-<meta property="og:site_name" content="Shadow802">
+<meta property="og:url" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
 <meta property="og:description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/hpa-scale.png">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/apiservice-metrics.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/apiservice-metrics-adapter.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-yaml.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/k8s-hpa.png">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-serviceMonitor.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/actuator-prometheus.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/metric-demo.jpg">
-<meta property="og:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/metric-query.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/hpa-scale.png">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/apiservice-metrics.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/apiservice-metrics-adapter.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-yaml.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/k8s-hpa.png">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/kube-prometheus-serviceMonitor.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/actuator-prometheus.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/metric-demo.jpg">
+<meta property="og:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/metric-query.jpg">
 <meta property="article:published_time" content="2021-02-02T16:00:00.000Z">
 <meta property="article:modified_time" content="2021-02-02T16:00:00.000Z">
-<meta property="article:author" content="Shadow802">
+<meta property="article:author" content="Shadow">
 <meta property="article:tag" content="Prometheus">
 <meta property="article:tag" content="HPA">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/hpa-scale.png">
+<meta name="twitter:image" content="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/hpa-scale.png">
 
-<link rel="canonical" href="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/">
+<link rel="canonical" href="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/">
 
 
 <script id="page-configurations">
@@ -57,7 +57,7 @@
   };
 </script>
 
-  <title>Kubernetes-HPA方案实践 | Shadow802</title>
+  <title>Kubernetes-HPA方案实践 | 人生如梦 对酒当歌</title>
   
 
 
@@ -108,7 +108,7 @@
 
     <a href="/" class="brand" rel="start">
       <span class="logo-line-before"><i></i></span>
-      <h1 class="site-title">Shadow802</h1>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
       <span class="logo-line-after"><i></i></span>
     </a>
   </div>
@@ -177,16 +177,16 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2021/02/03/Kubernetes-HPA%E6%96%B9%E6%A1%88%E5%AE%9E%E8%B7%B5/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="Shadow">
       <meta itemprop="description" content="">
     </span>
 
     <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
@@ -393,7 +393,7 @@
 
       <div class="site-overview-wrap sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
-  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <p class="site-author-name" itemprop="name">Shadow</p>
   <div class="site-description" itemprop="description"></div>
 </div>
 <div class="site-state-wrap motion-element">
@@ -445,7 +445,7 @@
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>
-  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
 </div>
 
 <div class="powered-by">
