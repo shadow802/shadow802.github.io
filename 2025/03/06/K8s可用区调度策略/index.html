@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.gitee.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    平台接入多个公有云的K8s托管集群，并使用Karmada进行了多集群部署的主备容灾，公有云的集群，使用Region和Zone提供不同地域多可用区的节点，保障集群内部署的高可用，我们应当使单个集群内的多副本的应用，尽量均匀地分摊到多个可用区，保障应用的可用性。 概念    K8s定义了一些常见场景需要用到的Annotation和Label，具体可参阅Well-Known Labels,">
+<meta property="og:type" content="article">
+<meta property="og:title" content="K8s可用区调度策略">
+<meta property="og:url" content="https://shadow802.gitee.io/2025/03/06/K8s%E5%8F%AF%E7%94%A8%E5%8C%BA%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5/index.html">
+<meta property="og:site_name" content="Shadow802">
+<meta property="og:description" content="前言    平台接入多个公有云的K8s托管集群，并使用Karmada进行了多集群部署的主备容灾，公有云的集群，使用Region和Zone提供不同地域多可用区的节点，保障集群内部署的高可用，我们应当使单个集群内的多副本的应用，尽量均匀地分摊到多个可用区，保障应用的可用性。 概念    K8s定义了一些常见场景需要用到的Annotation和Label，具体可参阅Well-Known Labels,">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.gitee.io/2025/03/06/K8s%E5%8F%AF%E7%94%A8%E5%8C%BA%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5/aliyun-ecs.png">
+<meta property="article:published_time" content="2025-03-05T16:00:00.000Z">
+<meta property="article:modified_time" content="2025-03-05T16:00:00.000Z">
+<meta property="article:author" content="Shadow802">
+<meta property="article:tag" content="Affinity">
+<meta property="article:tag" content="Topology">
+<meta property="article:tag" content="Schedule">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.gitee.io/2025/03/06/K8s%E5%8F%AF%E7%94%A8%E5%8C%BA%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5/aliyun-ecs.png">
+
+<link rel="canonical" href="https://shadow802.gitee.io/2025/03/06/K8s%E5%8F%AF%E7%94%A8%E5%8C%BA%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>K8s可用区调度策略 | Shadow802</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Shadow802</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.gitee.io/2025/03/06/K8s%E5%8F%AF%E7%94%A8%E5%8C%BA%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow802">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shadow802">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          K8s可用区调度策略
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2025-03-06 00:00:00" itemprop="dateCreated datePublished" datetime="2025-03-06T00:00:00+08:00">2025-03-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    平台接入多个公有云的K8s托管集群，并使用Karmada进行了多集群部署的主备容灾，公有云的集群，使用Region和Zone提供不同地域多可用区的节点，保障集群内部署的高可用，我们应当使单个集群内的多副本的应用，尽量均匀地分摊到多个可用区，保障应用的可用性。</p>
+<h1 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h1><p>    K8s定义了一些常见场景需要用到的Annotation和Label，具体可参阅<a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/labels-annotations-taints/#labels-annotations-and-taints-used-on-api-objects">Well-Known Labels, Annotations and Taints</a>，之前使用了app.kubernetes.io/name和app.kubernetes.io/version来实现平台的多版本部署，结合Istio进行流量的管理：灰度、蓝绿等。</p>
+<p>    其中如下两个标签，分别对应公有云上的地域和可用区的。K8s中关于这两个标签的描述，可点击链接查看。</p>
+<ul>
+<li><p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesioregion">topology.kubernetes.io/region</a></p>
+</li>
+<li><p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/labels-annotations-taints/#topologykubernetesioregion">topology.kubernetes.io/zone</a></p>
+</li>
+</ul>
+<p>    青岛阿里云中的某个节点如下，可以看到这是青岛阿里云可用区b的一台ECS。</p>
+<p><img src="aliyun-ecs.png"></p>
+<p>    接下来，要根据上述标签，实现单集群中应用的多可用区分布，目前想到能用的手段：</p>
+<ol>
+<li><p>PodAntiAffinity</p>
+<p>反亲和性，通过Required和Preferred两种方式，来强制或者优先保证部署实例分布在不同的节点上。</p>
+</li>
+<li><p>TopologySpreadConstraints</p>
+<p>拓扑分布约束，控制 应用实例在集群内故障域之间的分布， 例如区域（Region）、可用区（Zone）、节点和其他用户自定义拓扑域。 这样做有助于实现高可用并提升资源利用率。</p>
+</li>
+</ol>
+<p>    重点介绍一下第2种<a target="_blank" rel="noopener" href="https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/topology-spread-constraints/">TopologySpreadConstraints</a>。查看API，可供设置的字段如下：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Pod</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">example-pod</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="comment"># 配置一个拓扑分布约束</span></span><br><span class="line">  <span class="attr">topologySpreadConstraints:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">maxSkew:</span> <span class="string">&lt;integer&gt;</span></span><br><span class="line">      <span class="attr">minDomains:</span> <span class="string">&lt;integer&gt;</span> <span class="comment"># 可选</span></span><br><span class="line">      <span class="attr">topologyKey:</span> <span class="string">&lt;string&gt;</span></span><br><span class="line">      <span class="attr">whenUnsatisfiable:</span> <span class="string">&lt;string&gt;</span></span><br><span class="line">      <span class="attr">labelSelector:</span> <span class="string">&lt;object&gt;</span></span><br><span class="line">      <span class="attr">matchLabelKeys:</span> <span class="string">&lt;list&gt;</span> <span class="comment"># 可选；自从 v1.27 开始成为 Beta</span></span><br><span class="line">      <span class="attr">nodeAffinityPolicy:</span> [<span class="string">Honor|Ignore</span>] <span class="comment"># 可选；自从 v1.26 开始成为 Beta</span></span><br><span class="line">      <span class="attr">nodeTaintsPolicy:</span> [<span class="string">Honor|Ignore</span>] <span class="comment"># 可选；自从 v1.26 开始成为 Beta</span></span><br><span class="line">  <span class="comment">### 其他 Pod 字段置于此处</span></span><br></pre></td></tr></table></figure>
+
+<p>    文档中有详细介绍，这几个字段配合使用，总结如下：</p>
+<ol>
+<li><p>maxSkey、minDomains、topologyKey这三个结合起来看。</p>
+<p>（1）maxSkey，定义拓扑的最大偏差值。一旦不符合这个条件，就会触发下面的whenUnsatisfiable。</p>
+<p>（2）minDomains，符合条件的域的最小数量。</p>
+<p>（3）topologyKey，划分域的节点Label。</p>
+<p>综合来看，maxSkey这个偏差值，是对符合条件的域中的实例按域分组求和。</p>
+<p>   <strong>偏差值 = 单个域中符合条件实例数量的最大值 - 单个域中实例符合条件实例数量最小值得出的结果</strong></p>
+<p>其中minDomains对最小值进行了干预，当符合条件的域小于minDomains，是数量最小值永远等于0，大于等于的情况下，毫无作用。</p>
+</li>
+<li><p>whenUnsatisfiable，如果Pod的拓扑分布不符合上面定义的约束，调度器应该如何处理。</p>
+<p>（1）DoNotSchedule（默认），不调度，pod处于Pending的状态。</p>
+<p>（2）ScheduleAnyway，仍然调度，并尽可能选择会使拓扑偏差变小的节点来调度。</p>
+</li>
+<li><p>labelSelector、matchLabelKeys</p>
+<p>  labelSelector确定查找的Pod范围，与matchLabelKeys是与的关系，matchLabelKeys用来指定哪些键作为计算分部署Pod的集合，使用场景：在Pod滚动更新时，可以通过pod-template-hash在区分不同的Pod版本。</p>
+</li>
+<li><p>nodeAffinityPolicy、nodeTaintsPolicy在进行拓扑计算时，是否需要需要考虑亲和性和污点</p>
+<p>（1）Honor：要满足污点和亲和性的要求。</p>
+<p>（2）Ignore：没有要求，所有节点计算在内。</p>
+</li>
+</ol>
+<h1 id="方案"><a href="#方案" class="headerlink" title="方案"></a>方案</h1><h2 id="实例反亲和性"><a href="#实例反亲和性" class="headerlink" title="实例反亲和性"></a>实例反亲和性</h2><p>    节点反亲和性，能保证应用的各实例分布到不同可用区的Node上，这里我们只能用Preferred的优先调度策略，Required的策略，如果用户的实例数较多，远多于集群中的节点的可用区数量，会导致实例Pending。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">affinity:</span></span><br><span class="line">    <span class="attr">podAntiAffinity:</span></span><br><span class="line">      <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span> <span class="comment"># 优先 强制调度：requiredDuringSchedulingIgnoredDuringExecution</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span>  <span class="comment">#强制调度没有该字段</span></span><br><span class="line">        <span class="attr">podAffinityTerm:</span></span><br><span class="line">          <span class="attr">topologyKey:</span> <span class="string">topology.kubernetes.io/zone</span></span><br><span class="line">          <span class="attr">labelSelector:</span></span><br><span class="line">            <span class="attr">matchExpressions:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">app.kubernetes.io/name</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">k8s-ext</span> <span class="comment"># 应用名称</span></span><br><span class="line">            <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">app.kubernetes.io/version</span></span><br><span class="line">              <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">              <span class="attr">values:</span></span><br><span class="line">              <span class="bullet">-</span> <span class="string">v0</span> <span class="comment"># 应用版本</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="拓扑分布约束"><a href="#拓扑分布约束" class="headerlink" title="拓扑分布约束"></a>拓扑分布约束</h2><p>    拓扑分布约束，可以保证实例拓扑分布的均匀。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">topologySpreadConstraints:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">maxSkew:</span> <span class="number">1</span>                                 <span class="comment"># 偏差值不能超过1</span></span><br><span class="line">    <span class="attr">minDomains:</span> <span class="number">2</span>                              <span class="comment"># 最少两个可用区，如果低于两个可用区，全局最小值为0</span></span><br><span class="line">    <span class="attr">topologyKey:</span> <span class="string">topology.kubernetes.io/zone</span>   <span class="comment"># 域的划分依据使用可用区</span></span><br><span class="line">    <span class="attr">whenUnsatisfiable:</span> <span class="string">ScheduleAnyway</span>          <span class="comment"># 仍然调度，否则会启动不了</span></span><br><span class="line">    <span class="attr">nodeAffinityPolicy:</span> <span class="string">Honor</span>                  <span class="comment"># 考虑亲和性的节点</span></span><br><span class="line">    <span class="attr">nodeTaintsPolicy:</span> <span class="string">Honor</span>                    <span class="comment"># 考虑污点      </span></span><br><span class="line">    <span class="attr">labelSelector:</span></span><br><span class="line">      <span class="attr">matchExpressions:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">app.kubernetes.io/name</span></span><br><span class="line">        <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">        <span class="attr">values:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">k8s-ext</span> <span class="comment"># 应用名称</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">key:</span> <span class="string">app.kubernetes.io/version</span></span><br><span class="line">        <span class="attr">operator:</span> <span class="string">In</span></span><br><span class="line">        <span class="attr">values:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="string">v0</span> <span class="comment"># 应用版本</span></span><br><span class="line">    <span class="attr">matchLabelKeys:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">pod-template-hash</span>                        <span class="comment"># 滚动更新时，不同replicas管理的版本不一样</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>    拓扑分布约束，对用户而言，在理解和使用上，均存在不小的难度，建议只使用实例反亲和性实现应用优先多可用区的部署，暂不在平台上使用拓扑分布约束。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Affinity/" rel="tag"># Affinity</a>
+              <a href="/tags/Topology/" rel="tag"># Topology</a>
+              <a href="/tags/Schedule/" rel="tag"># Schedule</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/03/03/AI%E7%BD%91%E5%85%B3%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/" rel="prev" title="AI网关技术方案">
+      <i class="fa fa-chevron-left"></i> AI网关技术方案
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%A6%82%E5%BF%B5"><span class="nav-number">2.</span> <span class="nav-text">概念</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%96%B9%E6%A1%88"><span class="nav-number">3.</span> <span class="nav-text">方案</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E4%BE%8B%E5%8F%8D%E4%BA%B2%E5%92%8C%E6%80%A7"><span class="nav-number">3.1.</span> <span class="nav-text">实例反亲和性</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8B%93%E6%89%91%E5%88%86%E5%B8%83%E7%BA%A6%E6%9D%9F"><span class="nav-number">3.2.</span> <span class="nav-text">拓扑分布约束</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow802</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">70</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow802</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
