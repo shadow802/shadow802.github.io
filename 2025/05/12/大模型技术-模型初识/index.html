@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    大模型技术方兴未艾，随着GPT、DeepSeek、Qwen3等一系列模型的先后推出，大模型正推动着人工智能走向一个新的高度。作为新进这个领域的小白，必须从头学习相关技术理论，理解基础概念，才能像搭积木一样，步步为营，使用好这门技术。 神经网络    神经网络是深度学习的基础组件，初识机器学习一节中，就神经网络的基本组成单元单层感知器（M-P神经元模型）做了简单的介绍，并根据数据的流转，">
+<meta property="og:type" content="article">
+<meta property="og:title" content="大模型技术-模型初识">
+<meta property="og:url" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
+<meta property="og:description" content="前言    大模型技术方兴未艾，随着GPT、DeepSeek、Qwen3等一系列模型的先后推出，大模型正推动着人工智能走向一个新的高度。作为新进这个领域的小白，必须从头学习相关技术理论，理解基础概念，才能像搭积木一样，步步为营，使用好这门技术。 神经网络    神经网络是深度学习的基础组件，初识机器学习一节中，就神经网络的基本组成单元单层感知器（M-P神经元模型）做了简单的介绍，并根据数据的流转，">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/neural-network.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/RNN.webp">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/CNN.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/Transformer.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/PE.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/Attension.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/QKV.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/Self-Attension-Calc.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/Attension-QKT.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/Attension-Masked.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/FFN.png">
+<meta property="og:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/MoE.png">
+<meta property="article:published_time" content="2025-05-11T16:00:00.000Z">
+<meta property="article:modified_time" content="2025-05-11T16:00:00.000Z">
+<meta property="article:author" content="Shadow">
+<meta property="article:tag" content="AI">
+<meta property="article:tag" content="Transformer">
+<meta property="article:tag" content="MoE">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/neural-network.png">
+
+<link rel="canonical" href="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>大模型技术-模型初识 | 人生如梦 对酒当歌</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          大模型技术-模型初识
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2025-05-12 00:00:00" itemprop="dateCreated datePublished" datetime="2025-05-12T00:00:00+08:00">2025-05-12</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/AI/" itemprop="url" rel="index"><span itemprop="name">AI</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    大模型技术方兴未艾，随着GPT、DeepSeek、Qwen3等一系列模型的先后推出，大模型正推动着人工智能走向一个新的高度。作为新进这个领域的小白，必须从头学习相关技术理论，理解基础概念，才能像搭积木一样，步步为营，使用好这门技术。</p>
+<h1 id="神经网络"><a href="#神经网络" class="headerlink" title="神经网络"></a>神经网络</h1><p>    神经网络是深度学习的基础组件，<a href="https://shadow802.github.io/2023/12/25/%E5%88%9D%E8%AF%86%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/">初识机器学习</a>一节中，就神经网络的基本组成单元单层感知器（M-P神经元模型）做了简单的介绍，并根据数据的流转，简单分成了前馈神经网络和反馈神经网络两个类别。</p>
+<p><img src="neural-network.png"></p>
+<p>    下面就几个典型的神经网络的概念加以说明。</p>
+<h2 id="前馈神经网络"><a href="#前馈神经网络" class="headerlink" title="前馈神经网络"></a>前馈神经网络</h2><p>    英文全称：Feedforward Neural Network，英文简称：FNN。</p>
+<ul>
+<li><p>典型模型：多层感知器（MLP）、CNN。</p>
+</li>
+<li><p>常见用途：分类或者回归，图像分类、语音识别、结构化数据预测。</p>
+</li>
+<li><p>优缺分析：结构简单，易于实现和训练，无法处理时序依赖的数据。</p>
+</li>
+<li><p>示意图：输入层 -&gt; 隐藏层 -&gt; 输出层。数据从输入层开始，逐层前传到输出层，没有回环。</p>
+</li>
+</ul>
+<h2 id="反馈神经网络"><a href="#反馈神经网络" class="headerlink" title="反馈神经网络"></a>反馈神经网络</h2><p>    英文全称：Feedback Neural Network。</p>
+<ul>
+<li><p>典型模型：RNN、Hopfield 网络、自组织映射网络（Self-Organizing Map，SOM）。</p>
+</li>
+<li><p>常见用途：联想记忆。</p>
+</li>
+<li><p>优缺分析：训练复杂，容易陷入具备最优，具备自组织自适应能力，不适合大规模深度学习训练。</p>
+</li>
+<li><p>示意图：输入层 -&gt; 隐藏层（有环） -&gt; 输出层（有环）。包含从输出层或中间层返回到前面层的连接，有“环”。</p>
+</li>
+</ul>
+<h2 id="循环神经网络"><a href="#循环神经网络" class="headerlink" title="循环神经网络"></a>循环神经网络</h2><p>    英文全称：Recurrent Neural Network，英文简称：RNN。 </p>
+<ul>
+<li><p>典型模型：长短期记忆网络（LSTM）、门控循环单元（GRU）。</p>
+</li>
+<li><p>常见用途：时间序列、自然语言处理、音频建模。</p>
+</li>
+<li><p>优缺分析：能够处理序列中的时间依赖关系，训练过程中可能会出现梯度爆炸或者消失的问题。</p>
+</li>
+<li><p>示意图：</p>
+<p>t0: x0 → h0  </p>
+<p>t1: x1 + h0 → h1  </p>
+<p>t2: x2 + h1 → h2</p>
+<p><img src="RNN.webp"></p>
+</li>
+</ul>
+<h2 id="卷积神经网络"><a href="#卷积神经网络" class="headerlink" title="卷积神经网络"></a>卷积神经网络</h2><p>    英文全称：Convolutional Neural Network，英文简称：CNN。</p>
+<ul>
+<li><p>典型模型：LeNet、AlexNet、VGG、ResNet等。</p>
+</li>
+<li><p>常见用途：图像识别、目标检测、视频分析。</p>
+</li>
+<li><p>优缺分析：强大的图像处理能力，参数共享，计算效率高，适合处理高维数据；对时间序列数据处理能力有限。</p>
+</li>
+<li><p>示意图：输入图片 -&gt;  卷积层提取局部特征 -&gt; 池化降维 -&gt; 全连接 -&gt; 输出。 </p>
+</li>
+</ul>
+<p><img src="CNN.png"></p>
+<h2 id="Transfomer"><a href="#Transfomer" class="headerlink" title="Transfomer"></a>Transfomer</h2><p>    Transformer由论文<a target="_blank" rel="noopener" href="https://arxiv.org/pdf/1706.03762">《Attension is All Your Need》</a>提出，是大模型的核心架构；上升势头强劲，正朝着垂直领域（专业化模型）和通用领域（GAI通用人工智能）渗透。</p>
+<ul>
+<li><p>典型模型：GPT、DeepSeek、Qwen等。</p>
+</li>
+<li><p>常见用途：自然语言处理（NLP）、计算机视觉（CV）、音频处理、代码生成、多模态。</p>
+</li>
+<li><p>优缺点分析：很强的通用性、扩展性、迁移学习效果好，自注意力机制，可以很好的处理依赖，并进行并行计算；对计算资源需求高，训练成本大，理解难度高。</p>
+</li>
+</ul>
+<h1 id="Attension-is-All-Your-Need"><a href="#Attension-is-All-Your-Need" class="headerlink" title="Attension is All Your Need"></a>Attension is All Your Need</h1><p><img src="Transformer.png"></p>
+<h2 id="核心概念"><a href="#核心概念" class="headerlink" title="核心概念"></a>核心概念</h2><p>    从这幅经典的Transformer架构图中，可以看出整个过程分为Encode（左边部分）和Decode（右边部分）。可以看到在这两部分的处理过程中，Embedding、Positional Encoding、Multi-Head Attension、Add &amp; Norm多次被使用到。</p>
+<p>    <a target="_blank" rel="noopener" href="https://github.com/it-ebooks-0/it-ebooks-2018-allinone/blob/master/Attention%20Is%20All%20You%20Need%20%E4%B8%AD%E6%96%87%E7%BF%BB%E8%AF%91.pdf">Attention Is All You Need 中文翻译.pdf</a></p>
+<p>    <a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/338817680">Transformer模型详解（图解最完整版）</a></p>
+<p>    <a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=ugWDIIOHtPA&list=PLJV_el3uVTsOK_ZK5L0Iv_EQoL1JefRL4&index=62">Transformer - YouTube</a></p>
+<h3 id="Embedding"><a href="#Embedding" class="headerlink" title="Embedding"></a>Embedding</h3><p>    在NLP中，embedding（词嵌入）是将输入转换为向量矩阵，即为：将句子中的每个词或者词组，转化为带有Feature的向量（维度d=512），这些维度代表了词或者词组的不同的含义，这样整个句子就会变成一个矩阵（其中行代表有多少个词或词组，列则代表每个字或者词组的Feature）。例如可以通过对向量计算，得出两个向量之间的远近关系。文本转向量有多种方式，例如可以采用 Word2Vec、Glove 等算法预训练得到，也可以在 Transformer 中训练得到。</p>
+<h3 id="Positional-Encoding"><a href="#Positional-Encoding" class="headerlink" title="Positional Encoding"></a>Positional Encoding</h3><p>    Embedding只对词的Feature做了表示，在NLP中，例如翻译，词与词的位置同样很关键，相同的词，不同的顺序出现，会代表不同的含义。在Transformer中，因为没有采取RNN和CNN的结构，无法利用顺序信息，因此必须有一种方式来代表位置信息。Transformer中采取了一种PE来标识。</p>
+<p><img src="PE.png"></p>
+<blockquote>
+<p>*<em>Embedding（词嵌入）+  Positional Encoding（位置编码）=  Tranformer的输入X（一个n</em>d的矩阵，其中n代表词的个数，d代表每个词的Feature向量）。**</p>
+</blockquote>
+<h3 id="Multi-Head-Attension"><a href="#Multi-Head-Attension" class="headerlink" title="Multi-Head Attension"></a>Multi-Head Attension</h3><p><img src="Attension.png"></p>
+<p>     多头注意力是由多个自注意力机制组成的。这幅图中的左边代表放大版的自注意力机制的结构，右边的多头注意力是h个自注意力组成，并添加了Concat（矩阵连接）、Liner等操作。</p>
+<h4 id="Self-Attension"><a href="#Self-Attension" class="headerlink" title="Self Attension"></a>Self Attension</h4><p>    多头注意力是怎样拆分成多个自注意力的，其中的QKV是如何得出的？根据论文中的表述，实际多头注意力的头h=8，然后将X（n*d，d=512），拆成了h个n * 64的矩阵，分别输入到h个自注意力中。其中Q=X * WQ，K= X * WK， V=X * WV，WQ、WK、WV分别代表模型的权重，随机初始化，并在训练中更新其数据。</p>
+<p><img src="QKV.png"></p>
+<p>    经过上述变换后，在每个自注意力头中，得到了对应的Q、K、V，三个n*64的矩阵输入。下面计算注意力的值。</p>
+<p><img src="Self-Attension-Calc.png"></p>
+<p>$$<br>Q * K^T 实际代表了将Q的每一行的每一列（代表某个词的Feature），与K的所有行做运算，也就是看每个词与其它词的关联度。<br>$$</p>
+<p><img src="Attension-QKT.png"> </p>
+<p>    后面的除以K的列数d=64的平方根和softmax，都是为了防止内积过大，得到每个词跟其它词的Attension系数，然后再与矩阵V做乘法，得到最终的Attension值，一个n*64的矩阵。图中还有一个Masked（opt.），这个操作是为了在Decode的Attension计算中，遮挡未来词的权重信息，防止使用到未输出字符的信息，影响现有的计算。</p>
+<p><img src="Attension-Masked.png"></p>
+<blockquote>
+<p>将上述8个Attension的矩阵连接起来，得到一个n * d，d=8 * 64的矩阵，得到一个与输入X维度相同的多头注意力矩阵。实际操作中，可能不是完全按照X的Feature除以头数h严格划分的，为了保证最终得到的值与X的维度相同，就需要再做一次线性变换，保证X与最终得到结果的矩阵是完全相同的。</p>
+</blockquote>
+<h3 id="Add-amp-Norm"><a href="#Add-amp-Norm" class="headerlink" title="Add &amp; Norm"></a>Add &amp; Norm</h3><p>    Add，是将多头注意力输出的矩阵与输入矩阵X相加，这是一种防止网络退化的方式，称为残差连接。</p>
+<p>    Norm，是归一化，指 Layer Normalization，通常用于 RNN 结构，Layer Normalization 会将每一层神经元的输入都转成均值方差都一样的，这样可以加快收敛。</p>
+<h3 id="Feed-Forward"><a href="#Feed-Forward" class="headerlink" title="Feed Forward"></a>Feed Forward</h3><p>    Feed Forward 层比较简单，是一个两层的全连接层，第一层的激活函数为 Relu，第二层不使用激活函数，对应的公式如下。<strong>X</strong>是输入，Feed Forward 最终得到的输出矩阵的维度与<strong>X</strong>一致。</p>
+<p><img src="FFN.png"></p>
+<h2 id="架构详解"><a href="#架构详解" class="headerlink" title="架构详解"></a>架构详解</h2><p>    理解了上述基本概念后，我们重新梳理Transformer架构图中各部分操作针对的数据对象，处理后的结果以及要达到的目的。</p>
+<h3 id="Encode"><a href="#Encode" class="headerlink" title="Encode"></a>Encode</h3><ol>
+<li><p>Input Embedding</p>
+<p>对输入做词嵌入转化，将输入转化为词向量，方便后面的运算。</p>
+</li>
+<li><p>Positional Encoding</p>
+<p>在向量化的输入上，填加位置编码，得到Transformer的输入X矩阵。</p>
+</li>
+<li><p>Multi-Head Attension</p>
+<p>按照多个头分别计算注意力，然后经过连接、线性变换得到与X同维度的多头注意力输出MA。</p>
+</li>
+<li><p>Add &amp; Norm</p>
+<p>对A进行残差连接、归一化，得到与X同维度的多头注意力输出A。</p>
+</li>
+<li><p>Feed Forward</p>
+<p>将A通过FFN，进行线性变换得到FA。</p>
+</li>
+<li><p>Add &amp; Norm</p>
+<p>将FA与A再做一次残差连接，归一化，最终得到Encode的输出O，经过N个Encode处理最终得到EO。</p>
+</li>
+</ol>
+<h3 id="Decode"><a href="#Decode" class="headerlink" title="Decode"></a>Decode</h3><ol>
+<li><p>Output Embedding</p>
+<p>这里是Encode上一次的输出，如果是第一个输出词，就只有一个输出标记。每次将之前的输出全部输入，来得到下一次输出。</p>
+</li>
+<li><p>Positional Encoding</p>
+<p>输出信息也要加上位置编码，得到输入信息Y（t-1时刻）。</p>
+</li>
+<li><p><strong>Masked</strong> Multi-Head Attension</p>
+<p>这里对Y（t-1时刻）做多头注意力计算，注意这里使用到了Masked来防止，读到未来的信息，即：每个词输出的时候，只能看到之前输出的词的信息。得到YA。</p>
+</li>
+<li><p>Add &amp; Norm</p>
+<p>对YA和Y（t-1时刻），做残差连接、归一化，得到A</p>
+</li>
+<li><p>Multi-Head Attension</p>
+<p>Encode的输出EO（计算得到K和V）和Decode的A（计算得到Q）做多头注意力计算，得到OA</p>
+</li>
+<li><p>Add &amp; Norm</p>
+<p>OA与A做残差连接，归一化，得到A</p>
+</li>
+<li><p>Feed Forward</p>
+<p>将A通过FFN，进行线性变换得到FA。</p>
+</li>
+<li><p>Add &amp; Norm</p>
+<p>将FA与A再做一次残差连接，归一化，最终得到Encode的输出O。</p>
+</li>
+<li><p>Liner</p>
+<p>通过N个Encode的输出做线性变换。</p>
+</li>
+<li><p>Softmax</p>
+<p>使用Softmax预测下一个词的输出。</p>
+</li>
+<li><p>Output Probabilities</p>
+<p>最有可能的词输出Y。</p>
+</li>
+</ol>
+<h1 id="MoE-amp-Dense"><a href="#MoE-amp-Dense" class="headerlink" title="MoE &amp; Dense"></a>MoE &amp; Dense</h1><p>    <a target="_blank" rel="noopener" href="https://huggingface.co/blog/zh/moe#%E6%B7%B7%E5%90%88%E4%B8%93%E5%AE%B6%E6%A8%A1%E5%9E%8B-moe-%E8%AF%A6%E8%A7%A3">混合专家模型（MoE）详解</a></p>
+<p>    MOE称为混合专家 (Mixture of Experts)，传统的Transformer架构，是典型的Dense模型，每次训练和计算需要激活所有的参数。MoE通过将镜像Transformer架构中的FFN替换成MoE层。</p>
+<p>  <img src="MoE.png" alt="loading-ag-681"></p>
+<p>    MoE层主要有两个关键部分：</p>
+<ol>
+<li><p>有若干个独立神经网络组成的专家来替换掉Transformer中的FFN。</p>
+</li>
+<li><p>门控网络或者路由，决定那些token被发送到那个专家。</p>
+</li>
+</ol>
+<p>    MoE相较于Dense的优势：</p>
+<ul>
+<li><p>预训练速度更快。</p>
+</li>
+<li><p>与具有相同参数数量的模型相比，具有更快的推理速度。</p>
+</li>
+<li><p>需要大量现存，因为所有专家系统都需要加载到内存当中，虽然有一部分是可以共享的。</p>
+</li>
+<li><p>微调方面存在诸多挑战，但是对MoE的模型进行指令调优有很大的潜力。</p>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AI/" rel="tag"># AI</a>
+              <a href="/tags/Transformer/" rel="tag"># Transformer</a>
+              <a href="/tags/MoE/" rel="tag"># MoE</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2025/03/06/K8s%E5%8F%AF%E7%94%A8%E5%8C%BA%E8%B0%83%E5%BA%A6%E7%AD%96%E7%95%A5/" rel="prev" title="K8s可用区调度策略">
+      <i class="fa fa-chevron-left"></i> K8s可用区调度策略
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C"><span class="nav-number">2.</span> <span class="nav-text">神经网络</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E9%A6%88%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C"><span class="nav-number">2.1.</span> <span class="nav-text">前馈神经网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%8D%E9%A6%88%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C"><span class="nav-number">2.2.</span> <span class="nav-text">反馈神经网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BE%AA%E7%8E%AF%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C"><span class="nav-number">2.3.</span> <span class="nav-text">循环神经网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%B7%E7%A7%AF%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C"><span class="nav-number">2.4.</span> <span class="nav-text">卷积神经网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Transfomer"><span class="nav-number">2.5.</span> <span class="nav-text">Transfomer</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Attension-is-All-Your-Need"><span class="nav-number">3.</span> <span class="nav-text">Attension is All Your Need</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="nav-number">3.1.</span> <span class="nav-text">核心概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Embedding"><span class="nav-number">3.1.1.</span> <span class="nav-text">Embedding</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Positional-Encoding"><span class="nav-number">3.1.2.</span> <span class="nav-text">Positional Encoding</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Multi-Head-Attension"><span class="nav-number">3.1.3.</span> <span class="nav-text">Multi-Head Attension</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Self-Attension"><span class="nav-number">3.1.3.1.</span> <span class="nav-text">Self Attension</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Add-amp-Norm"><span class="nav-number">3.1.4.</span> <span class="nav-text">Add &amp; Norm</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Feed-Forward"><span class="nav-number">3.1.5.</span> <span class="nav-text">Feed Forward</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3"><span class="nav-number">3.2.</span> <span class="nav-text">架构详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Encode"><span class="nav-number">3.2.1.</span> <span class="nav-text">Encode</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Decode"><span class="nav-number">3.2.2.</span> <span class="nav-text">Decode</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#MoE-amp-Dense"><span class="nav-number">4.</span> <span class="nav-text">MoE &amp; Dense</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">72</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
