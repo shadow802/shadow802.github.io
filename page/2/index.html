@@ -160,6 +160,82 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">ServiceMesh-Istio网关模式</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-01-28 00:00:00" itemprop="dateCreated datePublished" datetime="2023-01-28T00:00:00+08:00">2023-01-28</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ServiceMesh/" itemprop="url" rel="index"><span itemprop="name">ServiceMesh</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="需求背景"><a href="#需求背景" class="headerlink" title="需求背景"></a>需求背景</h1><p>    在K8s集群中，传统的Ingress Nginx充当集群南北向流量网关+Service充当集群的东西向代理的方案已经无法满足业务用户对于灰度发布、流量治理的要求，平台急需升级。</p>
+<h1 id="技术调研"><a href="#技术调研" class="headerlink" title="技术调研"></a>技术调研</h1><p>    以Envoy为基础的Istio网格方案进入视野，在很大程度上解耦了业务应用与网络通信。分离了业务开发和基础架构的关注点。同时提供了完善的灰度发布、服务治理相关的配置。</p>
+<p>    目前最新的ambient模式存在一些问题，尚无法应用到生产环境中。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2022/10/27/Java%E5%AE%B9%E5%99%A8%E5%8C%96%E9%83%A8%E7%BD%B2%E6%9D%82%E8%AE%B0/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -838,83 +914,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="人生如梦 对酒当歌">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/" class="post-title-link" itemprop="url">Kubernetes-源码分析kube-controller-manager</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2021-10-16 00:00:00" itemprop="dateCreated datePublished" datetime="2021-10-16T00:00:00+08:00">2021-10-16</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>​    理解Kubernetes的Informer机制，对于基于Kubernetes作二次开发，编写一些符合业务场景的controller至关重要。本文通过梳理Kubernetes的controller-manager的实现，对于深入理解使用Informer给予一些启发。</p>
-<h1 id="组件介绍"><a href="#组件介绍" class="headerlink" title="组件介绍"></a>组件介绍</h1><p>​    kube-controller-manager是Kubernetes中controller模式的实现者，承载了许多工作负载的关键逻辑实现。在实际使用的集群中，kube-controller-manager以多副本选主的方式，保证高可用。通过ListWatch api-server对应资源的API。触发事件回调，执行相应的调谐逻辑保证工作负载的状态与用户期望的状态达到最终一致性。</p>
-<p>​    kube-controller-manager作为Kubernetes的关键组件之一，代码相对简单，整体结构基本与自定义controller的实现并无二致。</p>
-<p>​    参照《Kubernetes源码剖析》一书中的这幅图，详细展示了组件之间的关系，笔者在图上作了序号的标记，结合源码在下文中来详细解释。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -984,7 +983,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-count">36</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -997,7 +996,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">72</span>
+        <span class="site-state-item-count">74</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

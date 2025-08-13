@@ -160,6 +160,88 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2025/08/13/ServiceMesh-Istio%20Ambient%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2025/08/13/ServiceMesh-Istio%20Ambient%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">ServiceMesh-Istio Ambient技术方案</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2025-08-13 00:00:00" itemprop="dateCreated datePublished" datetime="2025-08-13T00:00:00+08:00">2025-08-13</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ServiceMesh/" itemprop="url" rel="index"><span itemprop="name">ServiceMesh</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    目前平台主要基于Kubernetes的架构进行产品演进，为实现全链路灰度，降低版本发布的风险，计划从两个方向来调研灰度的能力：</p>
+<ul>
+<li><p>入口网关，目前主要有Ingress Nginx、API7/Apisix等自建入口网关。</p>
+</li>
+<li><p>服务网格，采用Istio来实现服务之间访问流量的灰度。</p>
+</li>
+</ul>
+<p>    Istio于1.24首次推出Istio Ambient的版本，Ambient以其简洁的架构、完全与应用解耦、以较低的资源配置获得性能的提升和不亚于Sidecar的安全防护能力获得许多人的青睐。</p>
+<h1 id="Ambient-or-Sidecar"><a href="#Ambient-or-Sidecar" class="headerlink" title="Ambient or Sidecar"></a>Ambient or Sidecar</h1>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2025/08/13/ServiceMesh-Istio%20Ambient%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2025/05/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%88%9D%E8%AF%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -861,82 +943,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="人生如梦 对酒当歌">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/" class="post-title-link" itemprop="url">ServiceMesh-Istio网关模式</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2023-01-28 00:00:00" itemprop="dateCreated datePublished" datetime="2023-01-28T00:00:00+08:00">2023-01-28</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/ServiceMesh/" itemprop="url" rel="index"><span itemprop="name">ServiceMesh</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="需求背景"><a href="#需求背景" class="headerlink" title="需求背景"></a>需求背景</h1><p>    在K8s集群中，传统的Ingress Nginx充当集群南北向流量网关+Service充当集群的东西向代理的方案已经无法满足业务用户对于灰度发布、流量治理的要求，平台急需升级。</p>
-<h1 id="技术调研"><a href="#技术调研" class="headerlink" title="技术调研"></a>技术调研</h1><p>    以Envoy为基础的Istio网格方案进入视野，在很大程度上解耦了业务应用与网络通信。分离了业务开发和基础架构的关注点。同时提供了完善的灰度发布、服务治理相关的配置。</p>
-<p>    目前最新的ambient模式存在一些问题，尚无法应用到生产环境中。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2023/01/28/ServiceMesh-Istio%E7%BD%91%E5%85%B3%E6%A8%A1%E5%BC%8F/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1006,7 +1012,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-count">36</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -1019,7 +1025,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">72</span>
+        <span class="site-state-item-count">74</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>

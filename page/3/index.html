@@ -160,6 +160,83 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/" class="post-title-link" itemprop="url">Kubernetes-源码分析kube-controller-manager</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-10-16 00:00:00" itemprop="dateCreated datePublished" datetime="2021-10-16T00:00:00+08:00">2021-10-16</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>​    理解Kubernetes的Informer机制，对于基于Kubernetes作二次开发，编写一些符合业务场景的controller至关重要。本文通过梳理Kubernetes的controller-manager的实现，对于深入理解使用Informer给予一些启发。</p>
+<h1 id="组件介绍"><a href="#组件介绍" class="headerlink" title="组件介绍"></a>组件介绍</h1><p>​    kube-controller-manager是Kubernetes中controller模式的实现者，承载了许多工作负载的关键逻辑实现。在实际使用的集群中，kube-controller-manager以多副本选主的方式，保证高可用。通过ListWatch api-server对应资源的API。触发事件回调，执行相应的调谐逻辑保证工作负载的状态与用户期望的状态达到最终一致性。</p>
+<p>​    kube-controller-manager作为Kubernetes的关键组件之一，代码相对简单，整体结构基本与自定义controller的实现并无二致。</p>
+<p>​    参照《Kubernetes源码剖析》一书中的这幅图，详细展示了组件之间的关系，笔者在图上作了序号的标记，结合源码在下文中来详细解释。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-controller-manager/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2021/10/16/Kubernetes-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90kube-scheduler/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -850,84 +927,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="人生如梦 对酒当歌">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/" class="post-title-link" itemprop="url">微服务技术-K8s容器资源评测</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2020-12-04 00:00:00" itemprop="dateCreated datePublished" datetime="2020-12-04T00:00:00+08:00">2020-12-04</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" itemprop="url" rel="index"><span itemprop="name">微服务</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>​    本文讨论的问题，服务共享平台需要大量动态发布Rest Server，目前首先考虑采用熟悉的技术栈Spring Boot 配合容器在K8s部署实现。在不考虑服务本身访问产生数据流量的情况下（抗流量，想通过副本扩展来应对），测试CPU、内存的消耗情况。        </p>
-<p>​    主要分为两部分：</p>
-<p>​        （1）基于《网关集成实践》中的设计，数据服务的Rest Server的职责，主要是承载数据访问的实际流量，启动后需要将自己上报给注册中心。</p>
-<p>​        （2）Kubernetes部署最低配置</p>
-<h1 id="Java-容器"><a href="#Java-容器" class="headerlink" title="Java 容器"></a>Java 容器</h1>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020/12/04/06%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%8A%80%E6%9C%AF-K8s%E5%AE%B9%E5%99%A8%E8%B5%84%E6%BA%90%E8%AF%84%E6%B5%8B/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -997,7 +996,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-count">36</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -1010,7 +1009,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">72</span>
+        <span class="site-state-item-count">74</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
