@@ -17,7 +17,7 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":false,"nav":{"gitalk":{"order":-1}},"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="HPA基础Pod 水平自动扩缩的工作机制 ​     ​    Pod扩缩特性，由K8S的API资源和控制器实现，资源决定了控制器的行为，控制器会周期型地调整副本控制器中副本的数量，以使Pod的资源使用情况，符合用户设定的目标值，Pod自动扩缩不适用于无法扩缩的对象，例如DaemonSet。">
@@ -258,7 +258,7 @@
 
 
 
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl apply -f  hpa.yml</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl apply -f  hpa.yml</span><br></pre></td></tr></table></figure>
 
 <p>​    （2）增加scaleTargetRef对象的负载，观察效果，最终的扩容结果，会以同时满足两个指标情况为最终扩容结果。</p>
 <p>​    <strong>使用HPA进行扩缩容管理时，如果手动对Deployment进行scale，会出现缩容失败的情况，同时官方也指出，绑定了HPA的滚动升级，HPA不能工作。</strong></p>
@@ -269,7 +269,7 @@
 <p>​    （3）将指标收集到prometheus后，可以在UI界面查询到应用的对象，和该指标情况：</p>
 <p><img src="metric-demo.jpg" alt="metric-demo"></p>
 <p>​        （4）通过定义adapter的configMap，将该指标通过K8s API暴露出来。configMap定义：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">data:</span></span><br><span class="line">  <span class="attr">config.yaml:</span> <span class="string">|</span></span><br><span class="line">    <span class="attr">rules:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">seriesQuery:</span> <span class="string">&#x27;http_server_requests_seconds_count&#x27;</span></span><br><span class="line">      <span class="attr">seriesFilters:</span> []</span><br><span class="line">      <span class="attr">resources:</span></span><br><span class="line">        <span class="attr">overrides:</span></span><br><span class="line">          <span class="attr">namespace:</span></span><br><span class="line">            <span class="attr">resource:</span> <span class="string">namespace</span></span><br><span class="line">          <span class="attr">pod:</span></span><br><span class="line">            <span class="attr">resource:</span> <span class="string">pod</span></span><br><span class="line">      <span class="attr">name:</span></span><br><span class="line">        <span class="attr">matches:</span> <span class="string">&quot;^(.*)_seconds_count&quot;</span></span><br><span class="line">        <span class="attr">as:</span> <span class="string">&quot;$&#123;1&#125;_per_second&quot;</span></span><br><span class="line">      <span class="attr">metricsQuery:</span> <span class="string">(sum(rate(&lt;&lt;.Series&gt;&gt;&#123;&lt;&lt;.LabelMatchers&gt;&gt;&#125;[1m]))</span> <span class="string">by</span> <span class="string">(&lt;&lt;.GroupBy&gt;&gt;))</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ConfigMap</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">adapter-config</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">monitoring</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">data:</span></span><br><span class="line">  <span class="attr">config.yaml:</span> <span class="string">|</span></span><br><span class="line"><span class="string">    rules:</span></span><br><span class="line"><span class="string">    - seriesQuery: &#x27;http_server_requests_seconds_count&#x27;</span></span><br><span class="line"><span class="string">      seriesFilters: []</span></span><br><span class="line"><span class="string">      resources:</span></span><br><span class="line"><span class="string">        overrides:</span></span><br><span class="line"><span class="string">          namespace:</span></span><br><span class="line"><span class="string">            resource: namespace</span></span><br><span class="line"><span class="string">          pod:</span></span><br><span class="line"><span class="string">            resource: pod</span></span><br><span class="line"><span class="string">      name:</span></span><br><span class="line"><span class="string">        matches: &quot;^(.*)_seconds_count&quot;</span></span><br><span class="line"><span class="string">        as: &quot;$&#123;1&#125;_per_second&quot;</span></span><br><span class="line"><span class="string">      metricsQuery: (sum(rate(&lt;&lt;.Series&gt;&gt;&#123;&lt;&lt;.LabelMatchers&gt;&gt;&#125;[1m])) by (&lt;&lt;.GroupBy&gt;&gt;))</span></span><br><span class="line"><span class="string"></span><span class="attr">kind:</span> <span class="string">ConfigMap</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">adapter-config</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">monitoring</span></span><br></pre></td></tr></table></figure>
 
 <p>​    </p>
 <p>​    这是一个带参数的 Prometheus 查询，其中：</p>
@@ -294,7 +294,7 @@
 </li>
 </ul>
 <p>在K8s集群中，应用上述configMap，通过API查看自定义指标是否生效。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get --raw &quot;&#x2F;apis&#x2F;custom.metrics.k8s.io&#x2F;v1beta1&#x2F;namespaces&#x2F;&#123;namespace&#125;&#x2F;pod&#x2F;*&#x2F;http_server_requests_per_second&quot; | jq</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get --raw &quot;/apis/custom.metrics.k8s.io/v1beta1/namespaces/&#123;namespace&#125;/pod/*/http_server_requests_per_second&quot; | jq</span><br></pre></td></tr></table></figure>
 
 
 
@@ -341,6 +341,7 @@
 
           </div>
           
+    <div class="comments" id="gitalk-container"></div>
 
 <script>
   window.addEventListener('tabs:register', () => {
@@ -509,6 +510,26 @@
   
 
   
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'Ov23li2RKrPIAmFLysIK',
+      clientSecret: '82e3a65c3737ce4fa8e9beab672138f4617f3143',
+      repo        : 'shadow802.github.io',
+      owner       : 'shadow802',
+      admin       : ['shadow802'],
+      id          : '7668aac187459ee148bf90b6aa710486',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
 
 </body>
 </html>

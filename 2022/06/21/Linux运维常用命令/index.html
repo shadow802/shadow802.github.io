@@ -17,7 +17,7 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":false,"nav":{"gitalk":{"order":-1}},"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="背景    在Linux运维过程中，经常需要排查服务器的异常情况，当服务器因某些不明原因down机或者不响应，或者监控告警系统提示服务器某些指标出现异常，往往需要登录到这些服务器上进行异常原因排查，这时就需要一些常规的命令快速定位问题的所在，因此熟悉这些命令的使用，快速读懂它们的输出就非常重要。 常用方式    服务器一般有几个核心的指标比较重要，下面根据具体的指标，展开分析如何进行排查分析。 实">
@@ -222,7 +222,7 @@
       
         <h1 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h1><p>    在Linux运维过程中，经常需要排查服务器的异常情况，当服务器因某些不明原因down机或者不响应，或者监控告警系统提示服务器某些指标出现异常，往往需要登录到这些服务器上进行异常原因排查，这时就需要一些常规的命令快速定位问题的所在，因此熟悉这些命令的使用，快速读懂它们的输出就非常重要。</p>
 <h1 id="常用方式"><a href="#常用方式" class="headerlink" title="常用方式"></a>常用方式</h1><p>    服务器一般有几个核心的指标比较重要，下面根据具体的指标，展开分析如何进行排查分析。</p>
-<h2 id="实时查看"><a href="#实时查看" class="headerlink" title="实时查看"></a>实时查看</h2><h3 id="CPU"><a href="#CPU" class="headerlink" title="CPU"></a>CPU</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">top</span><br><span class="line"><span class="meta">#</span><span class="bash"> 按数字1可以展开每个cpu的情况</span></span><br><span class="line">vmstat</span><br></pre></td></tr></table></figure>
+<h2 id="实时查看"><a href="#实时查看" class="headerlink" title="实时查看"></a>实时查看</h2><h3 id="CPU"><a href="#CPU" class="headerlink" title="CPU"></a>CPU</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">top</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">按数字1可以展开每个cpu的情况</span></span><br><span class="line">vmstat</span><br></pre></td></tr></table></figure>
 
 <h3 id="Memory"><a href="#Memory" class="headerlink" title="Memory"></a>Memory</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">free -lh</span><br></pre></td></tr></table></figure>
 
@@ -237,10 +237,10 @@
 <li><p>netlog</p>
 </li>
 </ol>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">apt install nethogs</span><br><span class="line">man nethogs</span><br><span class="line"><span class="meta">#</span><span class="bash"> 可以在主机上查看哪些进程占用带宽较多</span></span><br><span class="line">nethogs </span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">apt install nethogs</span><br><span class="line">man nethogs</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">可以在主机上查看哪些进程占用带宽较多</span></span><br><span class="line">nethogs </span><br></pre></td></tr></table></figure>
 
 <h4 id="Socket情况"><a href="#Socket情况" class="headerlink" title="Socket情况"></a>Socket情况</h4><p>    netstat/ss</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">man ss</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看TCP的连接数量</span></span><br><span class="line">ss  -tan|awk &#x27;NR&gt;1&#123;++S[$1]&#125;END&#123;for (a in S) print a,S[a]&#125;&#x27;</span><br><span class="line"><span class="meta">#</span><span class="bash"> 显示所有TCP Socket，不加-a不显示listenning的TCP socket</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> -l可以只显示listenning的socket</span></span><br><span class="line">ss -t -a</span><br><span class="line"><span class="meta">#</span><span class="bash"> 过滤某状态的TCP连接</span></span><br><span class="line">ss -tn -o state established</span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">man ss</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看TCP的连接数量</span></span><br><span class="line">ss  -tan|awk &#x27;NR&gt;1&#123;++S[$1]&#125;END&#123;for (a in S) print a,S[a]&#125;&#x27;</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">显示所有TCP Socket，不加-a不显示listenning的TCP socket</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">-l可以只显示listenning的socket</span></span><br><span class="line">ss -t -a</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">过滤某状态的TCP连接</span></span><br><span class="line">ss -tn -o state established</span><br></pre></td></tr></table></figure>
 
 <h4 id="容器情况"><a href="#容器情况" class="headerlink" title="容器情况"></a>容器情况</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker stat</span><br></pre></td></tr></table></figure>
 
@@ -248,15 +248,15 @@
 <h3 id="Disk-I-O"><a href="#Disk-I-O" class="headerlink" title="Disk I/O"></a>Disk I/O</h3><ol>
 <li> iotop</li>
 </ol>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> iotop 默认按照Tid显示，可加参数-P按照Pid显示</span></span><br><span class="line">iotop -P</span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">iotop 默认按照Tid显示，可加参数-P按照Pid显示</span></span><br><span class="line">iotop -P</span><br></pre></td></tr></table></figure>
 
 <p><img src="iotop-introduction.png"></p>
 <ol start="2">
 <li>raid</li>
 </ol>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># 软raid的查看方式</span></span></span><br><span class="line">fdisk -l</span><br><span class="line">cat /proc/scsi/scsi</span><br><span class="line">或</span><br><span class="line">cat /proc/mdstat</span><br><span class="line">cat /etc/mdadm.conf</span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_">#</span><span class="language-bash"><span class="comment"># 软raid的查看方式</span></span></span><br><span class="line">fdisk -l</span><br><span class="line">cat /proc/scsi/scsi</span><br><span class="line">或</span><br><span class="line">cat /proc/mdstat</span><br><span class="line">cat /etc/mdadm.conf</span><br></pre></td></tr></table></figure>
 
-<h3 id="File-System"><a href="#File-System" class="headerlink" title="File System"></a>File System</h3><h4 id="文件描述符"><a href="#文件描述符" class="headerlink" title="文件描述符"></a>文件描述符</h4><h5 id="系统级别"><a href="#系统级别" class="headerlink" title="系统级别"></a>系统级别</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sysctl -h</span><br><span class="line"><span class="meta">#</span><span class="bash"> 统计每个进程打开文件数，第二行是Pid，第一行是数量</span></span><br><span class="line">lsof -n|awk &#x27;&#123;print $2&#125;&#x27;|sort|uniq -c|sort -nr|more</span><br></pre></td></tr></table></figure>
+<h3 id="File-System"><a href="#File-System" class="headerlink" title="File System"></a>File System</h3><h4 id="文件描述符"><a href="#文件描述符" class="headerlink" title="文件描述符"></a>文件描述符</h4><h5 id="系统级别"><a href="#系统级别" class="headerlink" title="系统级别"></a>系统级别</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sysctl -h</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">统计每个进程打开文件数，第二行是Pid，第一行是数量</span></span><br><span class="line">lsof -n|awk &#x27;&#123;print $2&#125;&#x27;|sort|uniq -c|sort -nr|more</span><br></pre></td></tr></table></figure>
 
 <p><img src="system-file-limit.png"></p>
 <blockquote>
@@ -264,16 +264,16 @@
 </blockquote>
 <p><img src="file-introduction.png"></p>
 <p>    <a target="_blank" rel="noopener" href="https://docs.kernel.org/admin-guide/sysctl/fs.html">官方说明</a></p>
-<h5 id="用户级别"><a href="#用户级别" class="headerlink" title="用户级别"></a>用户级别</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ulimit -h</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查询单个用户进程打开文件数，后面加上数字可临时修改，对当前shell有效</span></span><br><span class="line">ulimit -n</span><br><span class="line"><span class="meta">#</span><span class="bash"> 永久设置，设置的格式内容可以参照/etc/security/limits.conf前面的描述</span>            </span><br><span class="line">vim /etc/security/limits.conf</span><br><span class="line"></span><br><span class="line">* soft nofile 65535</span><br><span class="line">* hard nofile 65535</span><br></pre></td></tr></table></figure>
+<h5 id="用户级别"><a href="#用户级别" class="headerlink" title="用户级别"></a>用户级别</h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ulimit -h</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查询单个用户进程打开文件数，后面加上数字可临时修改，对当前shell有效</span></span><br><span class="line">ulimit -n</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">永久设置，设置的格式内容可以参照/etc/security/limits.conf前面的描述</span>            </span><br><span class="line">vim /etc/security/limits.conf</span><br><span class="line"></span><br><span class="line">* soft nofile 65535</span><br><span class="line">* hard nofile 65535</span><br></pre></td></tr></table></figure>
 
-<h4 id="inode"><a href="#inode" class="headerlink" title="inode"></a>inode</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> inode在文件系统初始化的时候通过-N 指定数量</span></span><br><span class="line">df -i /</span><br></pre></td></tr></table></figure>
+<h4 id="inode"><a href="#inode" class="headerlink" title="inode"></a>inode</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">inode在文件系统初始化的时候通过-N 指定数量</span></span><br><span class="line">df -i /</span><br></pre></td></tr></table></figure>
 
-<h4 id="磁盘分区及挂载、用量"><a href="#磁盘分区及挂载、用量" class="headerlink" title="磁盘分区及挂载、用量"></a>磁盘分区及挂载、用量</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看磁盘情况</span></span><br><span class="line">fdisk -l</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看分区、挂载</span></span><br><span class="line">df</span><br><span class="line">lsblk</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看文件夹下用量，进入该文件夹</span></span><br><span class="line">du -sh .</span><br></pre></td></tr></table></figure>
+<h4 id="磁盘分区及挂载、用量"><a href="#磁盘分区及挂载、用量" class="headerlink" title="磁盘分区及挂载、用量"></a>磁盘分区及挂载、用量</h4><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看磁盘情况</span></span><br><span class="line">fdisk -l</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看分区、挂载</span></span><br><span class="line">df</span><br><span class="line">lsblk</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看文件夹下用量，进入该文件夹</span></span><br><span class="line">du -sh .</span><br></pre></td></tr></table></figure>
 
 <h3 id="Process-Thread"><a href="#Process-Thread" class="headerlink" title="Process/Thread"></a>Process/Thread</h3><ol>
 <li>Pid</li>
 </ol>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 系统对Pid限制</span></span><br><span class="line">sysctl -a | grep</span><br><span class="line">ulimit -u</span><br><span class="line">vim /etc/security/limits.con </span><br><span class="line">*        hard    nproc           5000</span><br><span class="line">*        soft    nproc           5000</span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">系统对Pid限制</span></span><br><span class="line">sysctl -a | grep</span><br><span class="line">ulimit -u</span><br><span class="line">vim /etc/security/limits.con </span><br><span class="line">*        hard    nproc           5000</span><br><span class="line">*        soft    nproc           5000</span><br></pre></td></tr></table></figure>
 
 <p><img src="pid-limit.png"></p>
 <blockquote>
@@ -284,21 +284,21 @@
 <ol start="2">
 <li>进程数/线程数</li>
 </ol>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看进程</span></span><br><span class="line">ps -ef</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看线程  -T     Show threads, possibly with SPID column.</span></span><br><span class="line">ps -eT</span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看进程</span></span><br><span class="line">ps -ef</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看线程  -T     Show threads, possibly with SPID column.</span></span><br><span class="line">ps -eT</span><br></pre></td></tr></table></figure>
 
 <ol start="3">
 <li>僵尸进程</li>
 </ol>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 查看zombie</span></span><br><span class="line">top</span><br><span class="line"><span class="meta">#</span><span class="bash"> 或者查看状态为Z的</span></span><br><span class="line">ps -ef | grep defunct</span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看zombie</span></span><br><span class="line">top</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">或者查看状态为Z的</span></span><br><span class="line">ps -ef | grep defunct</span><br></pre></td></tr></table></figure>
 
 <blockquote>
 <p>如何处理僵尸进程</p>
 <p>可以kill僵尸进程的父进程，这样僵尸进程就成为孤儿进程，会托管给init进程，init进程会清理僵尸进程</p>
 </blockquote>
 <h2 id="历史记录"><a href="#历史记录" class="headerlink" title="历史记录"></a>历史记录</h2><h3 id="sysstat"><a href="#sysstat" class="headerlink" title="sysstat"></a>sysstat</h3><p>    sysstat服务启动以后，每十分钟收集一次系统系统状态信息（定时任务：cat /etc/cron.d/sysstat），数据记录在/var/log/sa目录下。配置文件在/etc/sysconfig/sysstat。</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">man sar</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看/var/<span class="built_in">log</span>/sa下的历史某天记录</span></span><br><span class="line">cd /var/log/sa</span><br><span class="line">ll -al</span><br><span class="line"><span class="meta">#</span><span class="bash"> sadd是二进制文件，可通过如下命令查看；sardd是文本文件，可以直接查看</span></span><br><span class="line">sar -f sa   </span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">man sar</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看/var/log/sa下的历史某天记录</span></span><br><span class="line">cd /var/log/sa</span><br><span class="line">ll -al</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">sadd是二进制文件，可通过如下命令查看；sardd是文本文件，可以直接查看</span></span><br><span class="line">sar -f sa   </span><br></pre></td></tr></table></figure>
 
-<h3 id="系统日志"><a href="#系统日志" class="headerlink" title="系统日志"></a>系统日志</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">man journalctl</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看内核日志</span></span><br><span class="line">journalctl -k</span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看上一次的启动日志</span></span><br><span class="line">journalctl -b -1</span><br></pre></td></tr></table></figure>
+<h3 id="系统日志"><a href="#系统日志" class="headerlink" title="系统日志"></a>系统日志</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">man journalctl</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看内核日志</span></span><br><span class="line">journalctl -k</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看上一次的启动日志</span></span><br><span class="line">journalctl -b -1</span><br></pre></td></tr></table></figure>
 
     </div>
 
@@ -337,6 +337,7 @@
 
           </div>
           
+    <div class="comments" id="gitalk-container"></div>
 
 <script>
   window.addEventListener('tabs:register', () => {
@@ -505,6 +506,26 @@
   
 
   
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'Ov23li2RKrPIAmFLysIK',
+      clientSecret: '82e3a65c3737ce4fa8e9beab672138f4617f3143',
+      repo        : 'shadow802.github.io',
+      owner       : 'shadow802',
+      admin       : ['shadow802'],
+      id          : '897ba4d7ff2a6da5ac0cca571734833e',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
 
 </body>
 </html>

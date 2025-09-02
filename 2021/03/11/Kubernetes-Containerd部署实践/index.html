@@ -17,7 +17,7 @@
 
 <script id="hexo-configurations">
     var NexT = window.NexT || {};
-    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":false,"nav":{"gitalk":{"order":-1}},"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
   <meta name="description" content="​    K8S 1.20 版本发布后，即将废弃对Docker的支持。 概念介绍cri（Container runtime interface） ​       cri is a containerd plugin implementation of Kubernetes container runtime interface（CRI）.  ​       cri是Kubernetes的容器运行时">
@@ -267,28 +267,28 @@
 </tr>
 </tbody></table>
 <h1 id="基础部署"><a href="#基础部署" class="headerlink" title="基础部署"></a>基础部署</h1><h2 id="SSH免密登陆"><a href="#SSH免密登陆" class="headerlink" title="SSH免密登陆"></a>SSH免密登陆</h2><p>​    这里简化一下免密登陆的设置步骤，统一使用相同的公钥、私钥。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ssh-keygen  &#x2F;&#x2F;生成公私钥对</span><br><span class="line">cat id_rsa.pub &gt;&gt; authorized_keys   &#x2F;&#x2F;将公钥写入authorized_keys</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ssh-keygen  //生成公私钥对</span><br><span class="line">cat id_rsa.pub &gt;&gt; authorized_keys   //将公钥写入authorized_keys</span><br></pre></td></tr></table></figure>
 
 <p>​    然后将~/.ssh目录下id_rsa  id_rsa.pub分发给另外两台主机</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scp id_rsa id_rsa.pub authorized_keys root@10.6.6.195:~&#x2F;.ssh</span><br><span class="line">scp id_rsa id_rsa.pub authorized_keys root@10.6.6.196:~&#x2F;.ssh</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scp id_rsa id_rsa.pub authorized_keys root@10.6.6.195:~/.ssh</span><br><span class="line">scp id_rsa id_rsa.pub authorized_keys root@10.6.6.196:~/.ssh</span><br></pre></td></tr></table></figure>
 
 <p>​    将hostname追加到三台机器的/etc/hosts中</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">10.6.6.194 K8S-194</span><br><span class="line">10.6.6.195 K8S-195</span><br><span class="line">10.6.6.196 K8S-196</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">10.6.6.194 K8S-194</span><br><span class="line">10.6.6.195 K8S-195</span><br><span class="line">10.6.6.196 K8S-196</span><br></pre></td></tr></table></figure>
 
 <p>​    至此，可实现三台机器互相的免密登陆。</p>
 <h2 id="NTP对时"><a href="#NTP对时" class="headerlink" title="NTP对时"></a>NTP对时</h2><p>​    CentOS系统中，已经带有ntpd的服务，只需要修改配置文件。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F;以10.6.6.194的时间为基准同步，在10.6.6.194上配置ntpd的配置文件</span><br><span class="line">vim &#x2F;etc&#x2F;ntp.conf</span><br><span class="line">server 127.127.1.0 iburst    &#x2F;&#x2F;在restrict ::1下去掉其它server增加这行</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F;10.6.6.195、10.6.6.196的配置为</span><br><span class="line">vim &#x2F;etc&#x2F;ntp.conf</span><br><span class="line">server 10.6.6.194 iburst</span><br><span class="line">restrict 10.6.6.194 nomodify notrap noquery</span><br><span class="line"></span><br><span class="line">&#x2F;&#x2F;所有节点上执行</span><br><span class="line">systemctl enable ntpd</span><br><span class="line">systemctl start ntpd</span><br><span class="line"></span><br><span class="line">ntpdate -u 10.6.6.194   &#x2F;&#x2F;进行手动同步</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">//以10.6.6.194的时间为基准同步，在10.6.6.194上配置ntpd的配置文件</span><br><span class="line">vim /etc/ntp.conf</span><br><span class="line">server 127.127.1.0 iburst    //在restrict ::1下去掉其它server增加这行</span><br><span class="line"></span><br><span class="line">//10.6.6.195、10.6.6.196的配置为</span><br><span class="line">vim /etc/ntp.conf</span><br><span class="line">server 10.6.6.194 iburst</span><br><span class="line">restrict 10.6.6.194 nomodify notrap noquery</span><br><span class="line"></span><br><span class="line">//所有节点上执行</span><br><span class="line">systemctl enable ntpd</span><br><span class="line">systemctl start ntpd</span><br><span class="line"></span><br><span class="line">ntpdate -u 10.6.6.194   //进行手动同步</span><br></pre></td></tr></table></figure>
 
-<h2 id="系统设置"><a href="#系统设置" class="headerlink" title="系统设置"></a>系统设置</h2><h3 id="关闭selinux"><a href="#关闭selinux" class="headerlink" title="关闭selinux"></a>关闭selinux</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">vim &#x2F;etc&#x2F;selinux&#x2F;config</span><br><span class="line">SELINUX&#x3D;disabled</span><br><span class="line">reboot</span><br></pre></td></tr></table></figure>
+<h2 id="系统设置"><a href="#系统设置" class="headerlink" title="系统设置"></a>系统设置</h2><h3 id="关闭selinux"><a href="#关闭selinux" class="headerlink" title="关闭selinux"></a>关闭selinux</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">vim /etc/selinux/config</span><br><span class="line">SELINUX=disabled</span><br><span class="line">reboot</span><br></pre></td></tr></table></figure>
 
-<h3 id="关闭防火墙"><a href="#关闭防火墙" class="headerlink" title="关闭防火墙"></a>关闭防火墙</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">systemctl stop firewalld.service</span><br><span class="line">systemctl disable firewalld.service</span><br></pre></td></tr></table></figure>
+<h3 id="关闭防火墙"><a href="#关闭防火墙" class="headerlink" title="关闭防火墙"></a>关闭防火墙</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">systemctl stop firewalld.service</span><br><span class="line">systemctl disable firewalld.service</span><br></pre></td></tr></table></figure>
 
-<h3 id="关闭swap"><a href="#关闭swap" class="headerlink" title="关闭swap"></a>关闭swap</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">swappoff -a</span><br><span class="line">vim &#x2F;etc&#x2F;fstab</span><br><span class="line">注释掉swap分区所在的行</span><br></pre></td></tr></table></figure>
+<h3 id="关闭swap"><a href="#关闭swap" class="headerlink" title="关闭swap"></a>关闭swap</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">swappoff -a</span><br><span class="line">vim /etc/fstab</span><br><span class="line">注释掉swap分区所在的行</span><br></pre></td></tr></table></figure>
 
 
 
 <h1 id="Sealos部署K8S"><a href="#Sealos部署K8S" class="headerlink" title="Sealos部署K8S"></a>Sealos部署K8S</h1><p>​    <a target="_blank" rel="noopener" href="https://github.com/fanux/sealos">Sealos Github</a></p>
-<h2 id="官方安装步骤"><a href="#官方安装步骤" class="headerlink" title="官方安装步骤"></a>官方安装步骤</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">wget -c https:&#x2F;&#x2F;sealyun.oss-cn-beijing.aliyuncs.com&#x2F;latest&#x2F;sealos &amp;&amp; \</span><br><span class="line">    chmod +x sealos &amp;&amp; mv sealos &#x2F;usr&#x2F;bin</span><br><span class="line">    </span><br><span class="line">wget -c https:&#x2F;&#x2F;sealyun.oss-cn-beijing.aliyuncs.com&#x2F;2fb10b1396f8c6674355fcc14a8cda7c-v1.20.0&#x2F;kube1.20.0.tar.gz</span><br><span class="line"></span><br><span class="line">sealos init --passwd &#39;kubernetes&#39; --master 10.6.6.194  --master 10.6.6.195  --master 10.6.6.196 --pkg-url &#x2F;home&#x2F;sealos&#x2F;kube1.20.0.tar.gz --version v1.20.0</span><br></pre></td></tr></table></figure>
+<h2 id="官方安装步骤"><a href="#官方安装步骤" class="headerlink" title="官方安装步骤"></a>官方安装步骤</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">wget -c https://sealyun.oss-cn-beijing.aliyuncs.com/latest/sealos &amp;&amp; \</span><br><span class="line">    chmod +x sealos &amp;&amp; mv sealos /usr/bin</span><br><span class="line">    </span><br><span class="line">wget -c https://sealyun.oss-cn-beijing.aliyuncs.com/2fb10b1396f8c6674355fcc14a8cda7c-v1.20.0/kube1.20.0.tar.gz</span><br><span class="line"></span><br><span class="line">sealos init --passwd &#x27;kubernetes&#x27; --master 10.6.6.194  --master 10.6.6.195  --master 10.6.6.196 --pkg-url /home/sealos/kube1.20.0.tar.gz --version v1.20.0</span><br></pre></td></tr></table></figure>
 
 
 
@@ -340,6 +340,7 @@
 
           </div>
           
+    <div class="comments" id="gitalk-container"></div>
 
 <script>
   window.addEventListener('tabs:register', () => {
@@ -508,6 +509,26 @@
   
 
   
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'Ov23li2RKrPIAmFLysIK',
+      clientSecret: '82e3a65c3737ce4fa8e9beab672138f4617f3143',
+      repo        : 'shadow802.github.io',
+      owner       : 'shadow802',
+      admin       : ['shadow802'],
+      id          : '9df81e90729567101196843ac51f208c',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
 
 </body>
 </html>
