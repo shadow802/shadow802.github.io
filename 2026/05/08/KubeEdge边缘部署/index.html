@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":{"gitalk":{"order":-1}},"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言    在制造业领域，需要在各区域的工厂中，利用有限的硬件，部署应用服务，这些服务与常规K8s的服务不同，除了要满足自动批量、灰度部署之外，还具备如下特别：  弱网自治：工厂与集团网络发生异常，工厂不停工，即用户部署的应用要在工厂的内部硬件和网络正常运作。  应用部署：应用版本的一键发布，同时支持单个工厂的差异化部署（例如版本灰度）。  流量闭环：工厂的访问流量，都在工厂内部的服务器、网络、应">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KubeEdge边缘部署">
+<meta property="og:url" content="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
+<meta property="og:description" content="前言    在制造业领域，需要在各区域的工厂中，利用有限的硬件，部署应用服务，这些服务与常规K8s的服务不同，除了要满足自动批量、灰度部署之外，还具备如下特别：  弱网自治：工厂与集团网络发生异常，工厂不停工，即用户部署的应用要在工厂的内部硬件和网络正常运作。  应用部署：应用版本的一键发布，同时支持单个工厂的差异化部署（例如版本灰度）。  流量闭环：工厂的访问流量，都在工厂内部的服务器、网络、应">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/KubeEdge-architecture.png">
+<meta property="og:image" content="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/flannel-error.png.jpeg">
+<meta property="og:image" content="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/EdgeMesh.png">
+<meta property="article:published_time" content="2026-05-07T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-05-07T16:00:00.000Z">
+<meta property="article:author" content="Shadow">
+<meta property="article:tag" content="KubeEdge">
+<meta property="article:tag" content="EdgeMesh">
+<meta property="article:tag" content="EdgeCore">
+<meta property="article:tag" content="Edge">
+<meta property="article:tag" content="WSL">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/KubeEdge-architecture.png">
+
+<link rel="canonical" href="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>KubeEdge边缘部署 | 人生如梦 对酒当歌</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          KubeEdge边缘部署
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2026-05-08 00:00:00" itemprop="dateCreated datePublished" datetime="2026-05-08T00:00:00+08:00">2026-05-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Architecture/" itemprop="url" rel="index"><span itemprop="name">Architecture</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    在制造业领域，需要在各区域的工厂中，利用有限的硬件，部署应用服务，这些服务与常规K8s的服务不同，除了要满足自动批量、灰度部署之外，还具备如下特别：</p>
+<ul>
+<li><p>弱网自治：工厂与集团网络发生异常，工厂不停工，即用户部署的应用要在工厂的内部硬件和网络正常运作。</p>
+</li>
+<li><p>应用部署：应用版本的一键发布，同时支持单个工厂的差异化部署（例如版本灰度）。</p>
+</li>
+<li><p>流量闭环：工厂的访问流量，都在工厂内部的服务器、网络、应用之内，不得依赖外部。</p>
+</li>
+<li><p>可观测性：工厂的服务器，节假日期间会停机，需要有统一的日志、监控查询能力。</p>
+</li>
+</ul>
+<h1 id="技术方案"><a href="#技术方案" class="headerlink" title="技术方案"></a>技术方案</h1><p>    书接上文<a href="https://shadow802.github.io/2024/02/29/%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/">边缘部署方案 | 人生如梦 对酒当歌</a>，因<a target="_blank" rel="noopener" href="https://github.com/openyurtio/openyurt">OpenYurt</a>已经超过2年不维护，因此选用了CNCF已经毕业的项目<a target="_blank" rel="noopener" href="https://kubeedge.io/docs/">KubeEdge</a>。</p>
+<h2 id="部署"><a href="#部署" class="headerlink" title="部署"></a>部署</h2><p>    按照边缘部署的整体架构，分为云、边、端，本次暂不涉及端侧的部署，只关系云和边的能力。</p>
+<p>    部署Kubeedge的基础组件，支持平台功能的迭代。</p>
+<p>    <a target="_blank" rel="noopener" href="https://kubeedge.io/docs/setup/install-with-keadm">Installing KubeEdge with Keadm | KubeEdge</a></p>
+<p><img src="KubeEdge-architecture.png"></p>
+<p>    （1）在云端，通过在自建机房中，部署K8s集群，安装KubeEdge云端控制面，向上通过K8s CRD提供边缘部署、节点管理等统一能力，向下通过WebSocket传达边缘节点的控制指令。</p>
+<p>    （2）在边缘端，通过部署边缘节点的核心组件，实现数据缓存、应用实例启动、流量打通。</p>
+<h3 id="云端"><a href="#云端" class="headerlink" title="云端"></a>云端</h3><h4 id="自建K8s"><a href="#自建K8s" class="headerlink" title="自建K8s"></a>自建K8s</h4><p>    自建K8s集群，兼容KubeEdge的版本，目前选定1.31。自建K8s的优势在于可以自由在Master节点上运行Cloud-Iptables-Manager组件，以实现通过<a target="_blank" rel="noopener" href="https://kubeedge.io/docs/advanced/debug">kubectl logs/exec命令 </a>来调试边缘Pod。</p>
+<h4 id="控制面"><a href="#控制面" class="headerlink" title="控制面"></a>控制面</h4><p>    主要在K8s集群中部署如下组件：</p>
+<ul>
+<li><p>CloudCore：KubeEdge核心控制面。</p>
+</li>
+<li><p>Cloud-Iptables-Manager：支持kubectl logs/exec 命令调试边缘节点。</p>
+</li>
+<li><p>Edge-Eclipse-Mosquitto：轻量的MQTT消息队列。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">命令行</span></span><br><span class="line">keadm init --advertise-address=&quot;10.0.0.x&quot; --kubeedge-version=v1.22.1 --kube-config=/root/.kube/config</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">使用yaml部署</span></span><br><span class="line">keadm manifest --advertise-address=&quot;10.0.0.x&quot; --kube-config=/root/.kube/config &gt; kubeedge-cloudcore.yaml</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>KubeEdge-Controller-Manager：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">https://github.com/kubeedge/kubeedge/blob/v1.22.1/build/controllermanager/</span></span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h3 id="边缘节点"><a href="#边缘节点" class="headerlink" title="边缘节点"></a>边缘节点</h3><h4 id="Linux"><a href="#Linux" class="headerlink" title="Linux"></a>Linux</h4><p>    目前主要使用的是Ubuntu  22.04.5及以上的版本，5.15.0-171-generic及以上的内核，cgroup使用的v1。</p>
+<blockquote>
+<p>   cgroup设置为cgroup v1：</p>
+<ol>
+<li><p>vim /etc/default/grub.cfg </p>
+</li>
+<li><p>GRUB_CMDLINE_LINUX_DEFAULT=”…. systemd.unified_cgroup_hierarchy=0”</p>
+</li>
+<li><p>update-grub</p>
+</li>
+<li><p>reboot </p>
+</li>
+</ol>
+</blockquote>
+<h5 id="运行时"><a href="#运行时" class="headerlink" title="运行时"></a>运行时</h5><p><a target="_blank" rel="noopener" href="https://kubeedge.io/docs/setup/prerequisites/runtime/">容器运行时</a>主要部署：</p>
+<ul>
+<li><p>Containerd</p>
+</li>
+<li><p>Runc</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装 containerd</span></span><br><span class="line">tar Cxzvf /usr/local containerd-2.2.1-linux-amd64.tar.gz</span><br><span class="line"></span><br><span class="line">containerd config default &gt; /etc/containerd/config.toml</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">containerd 配置  /etc/containerd/config.toml</span> </span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">修改其中pause的镜像仓库地址为：reg.xxxx.xxx/release/kubeedge/pause:3.6</span></span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">containerd system service</span></span><br><span class="line">tee /etc/systemd/system/containerd.service &lt;&lt;EOF</span><br><span class="line">[Unit]</span><br><span class="line">Description=containerd container runtime</span><br><span class="line">Documentation=https://containerd.io</span><br><span class="line">After=network.target</span><br><span class="line"></span><br><span class="line">[Service]</span><br><span class="line">ExecStart=/usr/local/bin/containerd</span><br><span class="line">Restart=always</span><br><span class="line">Delegate=yes</span><br><span class="line">KillMode=process</span><br><span class="line">OOMScoreAdjust=-999</span><br><span class="line">LimitNOFILE=1048576</span><br><span class="line">LimitNPROC=infinity</span><br><span class="line">LimitCORE=infinity</span><br><span class="line"></span><br><span class="line">[Install]</span><br><span class="line">WantedBy=multi-user.target</span><br><span class="line"></span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line">systemctl daemon-reload</span><br><span class="line">systemctl enable --now containerd</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装runc</span></span><br><span class="line">install -m 755 runc.amd64 /usr/local/sbin/runc</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装crictl</span></span><br><span class="line">tar Cxzvf /usr/local/bin crictl-v1.35.0-linux-amd64.tar.gz</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">crictl配置 /etc/crictl.yaml</span></span><br><span class="line">runtime-endpoint: unix:///var/run/containerd/containerd.sock</span><br><span class="line">image-endpoint: unix:///var/run/containerd/containerd.sock</span><br><span class="line">timeout: 2</span><br><span class="line">debug: false</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>CNI</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装CNI(自行分配网段)</span></span><br><span class="line">mkdir -p /opt/cni/bin</span><br><span class="line">tar Cxzvf /opt/cni/bin cni-plugins-linux-amd64-v1.1.1.tgz</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">CNI 配置 /etc/cni/net.d/10-bridge.conf</span></span><br><span class="line">&#123;</span><br><span class="line">  &quot;cniVersion&quot;: &quot;0.4.0&quot;,</span><br><span class="line">  &quot;name&quot;: &quot;cni0&quot;,</span><br><span class="line">  &quot;type&quot;: &quot;bridge&quot;,</span><br><span class="line">  &quot;bridge&quot;: &quot;cni0&quot;,</span><br><span class="line">  &quot;isGateway&quot;: true,</span><br><span class="line">  &quot;ipMasq&quot;: true,</span><br><span class="line">  &quot;ipam&quot;: &#123;</span><br><span class="line">    &quot;type&quot;: &quot;host-local&quot;,</span><br><span class="line">    &quot;subnet&quot;: &quot;172.29.0.0/16&quot;, # 手动分配网段，注意不要与K8s的service的网段冲突</span><br><span class="line">    &quot;routes&quot;: [</span><br><span class="line">      &#123; &quot;dst&quot;: &quot;0.0.0.0/0&quot; &#125;</span><br><span class="line">    ]</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">临时启用</span>    </span><br><span class="line">modprobe br_netfilter</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">永久启用</span></span><br><span class="line">vim /etc/modules-load.d/modules.conf</span><br><span class="line">br_netfilter</span><br></pre></td></tr></table></figure>
+
+<p>如果想使用flannel等CNI插件，自动分配网段，则需要部署flannel，并下发至边缘节点。则flannel可以根据配置，为各边缘节点分配网段。</p>
+</li>
+</ul>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">data:</span></span><br><span class="line"><span class="attr">cni-conf.json:</span> <span class="string">|</span></span><br><span class="line"><span class="string">  &#123;</span></span><br><span class="line"><span class="string">    &quot;name&quot;: &quot;cbr0&quot;,</span></span><br><span class="line"><span class="string">    &quot;cniVersion&quot;: &quot;0.3.1&quot;,</span></span><br><span class="line"><span class="string">    &quot;plugins&quot;: [</span></span><br><span class="line"><span class="string">      &#123;</span></span><br><span class="line"><span class="string">        &quot;type&quot;: &quot;flannel&quot;,</span></span><br><span class="line"><span class="string">        &quot;delegate&quot;: &#123;</span></span><br><span class="line"><span class="string">          &quot;hairpinMode&quot;: true,</span></span><br><span class="line"><span class="string">          &quot;isDefaultGateway&quot;: true</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">      &#125;,</span></span><br><span class="line"><span class="string">      &#123;</span></span><br><span class="line"><span class="string">        &quot;type&quot;: &quot;portmap&quot;,</span></span><br><span class="line"><span class="string">        &quot;capabilities&quot;: &#123;</span></span><br><span class="line"><span class="string">          &quot;portMappings&quot;: true</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">      &#125;</span></span><br><span class="line"><span class="string">    ]</span></span><br><span class="line"><span class="string">  &#125;</span></span><br><span class="line"><span class="string"></span><span class="attr">net-conf.json:</span> <span class="string">|</span></span><br><span class="line"><span class="string">  &#123;</span></span><br><span class="line"><span class="string">    &quot;Network&quot;: &quot;172.27.0.0/16&quot;,</span></span><br><span class="line"><span class="string">    &quot;EnableNFTables&quot;: false,</span></span><br><span class="line"><span class="string">    &quot;Backend&quot;: &#123;</span></span><br><span class="line"><span class="string">      &quot;Type&quot;: &quot;vxlan&quot;</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">  &#125;</span></span><br><span class="line"><span class="string"></span><span class="attr">kind:</span> <span class="string">ConfigMap</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>如果Flannel启动时使用–kube-subnet-mgr，单个节点网段大小，由Kube-Controller-Manager的–node-cidr-mask-size-ipv4决定</p>
+<p>目前使用了v1.9.0-flannel1的版本，高版本的Flannel使用了新版本的client-go，默认请求格式发生变化，请求Metaserver会报如下错误。</p>
+</blockquote>
+<p><img src="flannel-error.png.jpeg"></p>
+<h5 id="EdgeCore"><a href="#EdgeCore" class="headerlink" title="EdgeCore"></a>EdgeCore</h5><p>    类似于K8s的Kubelet，负责的边缘节点侧，边缘端代理Apiserver，执行云端CloudCore下发给边缘端的指令，并上报边缘端的情况。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">云端获取token</span></span><br><span class="line">keadm gettoken --kube-config=/root/.kube/qd-ali-edge-prod</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">边缘节点执行</span></span><br><span class="line">keadm join --cloudcore-ipport=10.xxx.xxx.x:10000 --token=a49dc6fa0b229bac1ff18f7912c439db6fa0c7ca564168afb675524bde70eaf1.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzI5MjgxOTF9.eCxne9O-H8613YqFHAjtoyXbbqORndFSrK8GmutJgDM --kubeedge-version=v1.22.1 --remote-runtime-endpoint=unix:///var/run/containerd/containerd.sock --image-repository=reg.xxx.xxx/release/kubeedge --edgenode-name=edge-10.xxx.xx.x --set modules.edgeStream.enable=true,modules.metaManager.metaServer=true</span><br><span class="line"><span class="meta prompt_"></span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">配置文件(组件的二进制可执行文件，有参数生成默认配置)</span></span><br><span class="line">edgecoreVersion: v1.22.1</span><br><span class="line">kind: EdgeCore</span><br><span class="line">featureGates:    # 开启in-cluster，pod访问metaserver使用sa RBAC</span><br><span class="line">  requireAuthorization: true</span><br><span class="line">modules:</span><br><span class="line">  dbTest:</span><br><span class="line">    enable: false</span><br><span class="line">  deviceTwin:</span><br><span class="line">    dmiSockPath: /etc/kubeedge/dmi.sock</span><br><span class="line">    enable: true</span><br><span class="line">  edgeHub:</span><br><span class="line">    enable: true</span><br><span class="line">    heartbeat: 15</span><br><span class="line">    httpServer: https://10.xxx.xxx.x:10002</span><br><span class="line">    messageBurst: 60</span><br><span class="line">    messageQPS: 30</span><br><span class="line">    projectID: e632aba927ea4ac2b575ec1603d56f10</span><br><span class="line">    quic:</span><br><span class="line">      enable: false</span><br><span class="line">      handshakeTimeout: 30</span><br><span class="line">      readDeadline: 15</span><br><span class="line">      server: 10.xxx.xxx.x:10001</span><br><span class="line">      writeDeadline: 15</span><br><span class="line">    rotateCertificates: true</span><br><span class="line">    tlsCaFile: /etc/kubeedge/ca/rootCA.crt</span><br><span class="line">    tlsCertFile: /etc/kubeedge/certs/server.crt</span><br><span class="line">    tlsPrivateKeyFile: /etc/kubeedge/certs/server.key</span><br><span class="line">    token: &quot;&quot;</span><br><span class="line">    websocket:</span><br><span class="line">      enable: true</span><br><span class="line">      handshakeTimeout: 30</span><br><span class="line">      readDeadline: 15</span><br><span class="line">      server: 10.xxx.xxx.6:10000</span><br><span class="line">      writeDeadline: 15</span><br><span class="line">  edgeStream:</span><br><span class="line">    enable: true</span><br><span class="line">    handshakeTimeout: 30</span><br><span class="line">    readDeadline: 15</span><br><span class="line">    server: 10.xxx.xxx.x:10004</span><br><span class="line">    tlsTunnelCAFile: /etc/kubeedge/ca/rootCA.crt</span><br><span class="line">    tlsTunnelCertFile: /etc/kubeedge/certs/server.crt</span><br><span class="line">    tlsTunnelPrivateKeyFile: /etc/kubeedge/certs/server.key</span><br><span class="line">    writeDeadline: 15</span><br><span class="line">  edged:</span><br><span class="line">    enable: true</span><br><span class="line">    hostnameOverride: edge-10.xxx.xx.x</span><br><span class="line">    maxContainerCount: -1</span><br><span class="line">    maxPerPodContainerCount: 1</span><br><span class="line">    minimumGCAge: 0s</span><br><span class="line">    podSandboxImage: kubeedge/pause:3.6</span><br><span class="line">    registerNodeNamespace: default</span><br><span class="line">    registerSchedulable: true</span><br><span class="line">    reportEvent: false</span><br><span class="line">    rootDirectory: /var/lib/kubelet</span><br><span class="line">    tailoredKubeletConfig:    </span><br><span class="line">      address: 127.0.0.1</span><br><span class="line">      cgroupDriver: cgroupfs</span><br><span class="line">      cgroupsPerQOS: true</span><br><span class="line">      clusterDomain: cluster.local</span><br><span class="line">      clusterDNS:</span><br><span class="line">      - 169.254.96.16</span><br><span class="line">      configMapAndSecretChangeDetectionStrategy: Get</span><br><span class="line">      containerLogMaxFiles: 5</span><br><span class="line">      containerLogMaxSize: 10Mi</span><br><span class="line">      containerLogMaxWorkers: 1</span><br><span class="line">      containerLogMonitorInterval: 10s</span><br><span class="line">      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock</span><br><span class="line">      contentType: application/json</span><br><span class="line">      cpuCFSQuota: true</span><br><span class="line">      cpuCFSQuotaPeriod: 100ms</span><br><span class="line">      cpuManagerPolicy: none</span><br><span class="line">      cpuManagerReconcilePeriod: 10s</span><br><span class="line">      enableControllerAttachDetach: true</span><br><span class="line">      enableDebugFlagsHandler: true</span><br><span class="line">      enableDebuggingHandlers: true</span><br><span class="line">      enableProfilingHandler: true</span><br><span class="line">      enableSystemLogHandler: true</span><br><span class="line">      enforceNodeAllocatable:</span><br><span class="line">      - pods</span><br><span class="line">      eventBurst: 100</span><br><span class="line">      eventRecordQPS: 50</span><br><span class="line">      evictionHard:</span><br><span class="line">        imagefs.available: 15%</span><br><span class="line">        imagefs.inodesFree: 5%</span><br><span class="line">        memory.available: 100Mi</span><br><span class="line">        nodefs.available: 10%</span><br><span class="line">        nodefs.inodesFree: 5%</span><br><span class="line">      evictionPressureTransitionPeriod: 5m0s</span><br><span class="line">      failCgroupV1: false</span><br><span class="line">      failSwapOn: false</span><br><span class="line">      fileCheckFrequency: 20s</span><br><span class="line">      hairpinMode: promiscuous-bridge</span><br><span class="line">      imageGCHighThresholdPercent: 85</span><br><span class="line">      imageGCLowThresholdPercent: 80</span><br><span class="line">      imageMaximumGCAge: 0s</span><br><span class="line">      imageMinimumGCAge: 2m0s</span><br><span class="line">      imageServiceEndpoint: unix:///var/run/containerd/containerd.sock</span><br><span class="line">      iptablesDropBit: 15</span><br><span class="line">      iptablesMasqueradeBit: 14</span><br><span class="line">      localStorageCapacityIsolation: true</span><br><span class="line">      logging:</span><br><span class="line">        flushFrequency: 5s</span><br><span class="line">        format: text</span><br><span class="line">        options:</span><br><span class="line">          json:</span><br><span class="line">            infoBufferSize: &quot;0&quot;</span><br><span class="line">          text:</span><br><span class="line">            infoBufferSize: &quot;0&quot;</span><br><span class="line">        verbosity: 0</span><br><span class="line">      makeIPTablesUtilChains: true</span><br><span class="line">      maxOpenFiles: 1000000</span><br><span class="line">      maxPods: 110</span><br><span class="line">      memoryManagerPolicy: None</span><br><span class="line">      memorySwap: &#123;&#125;</span><br><span class="line">      memoryThrottlingFactor: 0.9</span><br><span class="line">      nodeLeaseDurationSeconds: 40</span><br><span class="line">      nodeStatusMaxImages: 0</span><br><span class="line">      nodeStatusReportFrequency: 5m0s</span><br><span class="line">      nodeStatusUpdateFrequency: 10s</span><br><span class="line">      oomScoreAdj: -999</span><br><span class="line">      podLogsDir: /var/log/pods</span><br><span class="line">      podPidsLimit: -1</span><br><span class="line">      readOnlyPort: 10350</span><br><span class="line">      registerNode: true</span><br><span class="line">      registryBurst: 10</span><br><span class="line">      registryPullQPS: 5</span><br><span class="line">      resolvConf: /etc/resolv.conf</span><br><span class="line">      runtimeRequestTimeout: 2m0s</span><br><span class="line">      seccompDefault: false</span><br><span class="line">      serializeImagePulls: true</span><br><span class="line">      shutdownGracePeriod: 0s</span><br><span class="line">      shutdownGracePeriodCriticalPods: 0s</span><br><span class="line">      staticPodPath: /etc/kubeedge/manifests</span><br><span class="line">      streamingConnectionIdleTimeout: 4h0m0s</span><br><span class="line">      syncFrequency: 1m0s</span><br><span class="line">      topologyManagerPolicy: none</span><br><span class="line">      topologyManagerScope: container</span><br><span class="line">      volumePluginDir: /usr/libexec/kubernetes/kubelet-plugins/volume/exec/</span><br><span class="line">      volumeStatsAggPeriod: 1m0s</span><br><span class="line">  eventBus:</span><br><span class="line">    enable: true</span><br><span class="line">    eventBusTLS:</span><br><span class="line">      enable: false</span><br><span class="line">      tlsMqttCAFile: /etc/kubeedge/ca/rootCA.crt</span><br><span class="line">      tlsMqttCertFile: /etc/kubeedge/certs/server.crt</span><br><span class="line">      tlsMqttPrivateKeyFile: /etc/kubeedge/certs/server.key</span><br><span class="line">    mqttMode: 2</span><br><span class="line">    mqttPassword: &quot;&quot;</span><br><span class="line">    mqttPubClientID: &quot;&quot;</span><br><span class="line">    mqttQOS: 0</span><br><span class="line">    mqttRetain: false</span><br><span class="line">    mqttServerExternal: tcp://127.0.0.1:1883</span><br><span class="line">    mqttServerInternal: tcp://127.0.0.1:1884</span><br><span class="line">    mqttSessionQueueSize: 100</span><br><span class="line">    mqttSubClientID: &quot;&quot;</span><br><span class="line">    mqttUsername: &quot;&quot;</span><br><span class="line">  metaManager:</span><br><span class="line">    contextSendGroup: hub</span><br><span class="line">    contextSendModule: websocket</span><br><span class="line">    enable: true</span><br><span class="line">    metaServer:</span><br><span class="line">      apiAudiences: null</span><br><span class="line">      dummyServer: 169.254.30.10:10550</span><br><span class="line">      enable: true</span><br><span class="line">      server: 127.0.0.1:10550</span><br><span class="line">      serviceAccountIssuers:</span><br><span class="line">      - https://kubernetes.default.svc.cluster.local</span><br><span class="line">      serviceAccountKeyFiles: null</span><br><span class="line">      tlsCaFile: /etc/kubeedge/ca/rootCA.crt</span><br><span class="line">      tlsCertFile: /etc/kubeedge/certs/server.crt</span><br><span class="line">      tlsPrivateKeyFile: /etc/kubeedge/certs/server.key</span><br><span class="line">    remoteQueryTimeout: 60</span><br><span class="line">  serviceBus:</span><br><span class="line">    enable: false</span><br><span class="line">    port: 9060</span><br><span class="line">    server: 127.0.0.1</span><br><span class="line">    timeout: 60</span><br><span class="line">  taskManager:</span><br><span class="line">    enable: false</span><br></pre></td></tr></table></figure>
+
+<h5 id="AddOns"><a href="#AddOns" class="headerlink" title="AddOns"></a>AddOns</h5><p>    一些额外的组件，来处理Service流量转发、日志收集、监控收集等功能。</p>
+<h6 id="EdgeMesh"><a href="#EdgeMesh" class="headerlink" title="EdgeMesh"></a>EdgeMesh</h6><blockquote>
+<p>此组件目前已基本不维护。有风险！！！</p>
+</blockquote>
+<p><img src="EdgeMesh.png"></p>
+<p><a target="_blank" rel="noopener" href="https://edgemesh.netlify.app/zh/guide/">快速上手 | EdgeMesh</a></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kubeedge/edgemesh/blob/main/README_zh.md">https://github.com/kubeedge/edgemesh/blob/main/README_zh.md</a></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装组件</span></span><br><span class="line"><span class="string">https://github.com/kubeedge/edgemesh/tree/main/build/agent/resources</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置修改</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ConfigMap</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">edgemesh-agent-cfg</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">kubeedge</span></span><br><span class="line"><span class="attr">data:</span></span><br><span class="line">  <span class="attr">edgemesh-agent.yaml:</span> <span class="string">|</span></span><br><span class="line"><span class="string">    # 是否使用sa访问metaserver</span></span><br><span class="line"><span class="string">    kubeAPIConfig:</span></span><br><span class="line"><span class="string">      metaServer:</span></span><br><span class="line"><span class="string">        security:</span></span><br><span class="line"><span class="string">          requireAuthorization: true</span></span><br><span class="line"><span class="string">          insecureSkipTLSVerify: true</span></span><br><span class="line"><span class="string">    # For more detailed configuration, please refer to: https://edgemesh.netlify.app/reference/config-items.html#edgemesh-agent-cfg</span></span><br><span class="line"><span class="string">    modules:</span></span><br><span class="line"><span class="string">      edgeProxy:</span></span><br><span class="line"><span class="string">        enable: true</span></span><br><span class="line"><span class="string">        socks5Proxy:</span></span><br><span class="line"><span class="string">          enable: true   # SSH Proxy</span></span><br><span class="line"><span class="string">      edgeTunnel:</span></span><br><span class="line"><span class="string">        enable: true</span></span><br><span class="line"><span class="string">        #relayNodes:</span></span><br><span class="line"><span class="string">        #- nodeName: &lt;your relay node name1&gt;</span></span><br><span class="line"><span class="string">        #  advertiseAddress:</span></span><br><span class="line"><span class="string">        #  - 1.1.1.1</span></span><br><span class="line"><span class="string">        #- nodeName: &lt;your relay node name2&gt;</span></span><br><span class="line"><span class="string">        #  advertiseAddress:</span></span><br><span class="line"><span class="string">        #  - 2.2.2.2</span></span><br><span class="line"><span class="string">        #  - 3.3.3.3</span></span><br></pre></td></tr></table></figure>
+
+<p>（1）Service Discovery</p>
+<p>        集群中不需要下发的Service，需要在Service上添加label service.edgemesh.kubeedge.io/service-proxy-name</p>
+<p>        注意边缘节点的容器网段不能与Service网段冲突</p>
+<p>（2）DNS Resolve</p>
+<p>        将边缘侧的DNS解析转发至169.254.96.16，EdgeMesh代理对应的DNS解析。</p>
+<p>（3）Service Topology</p>
+<p>        支持Service访问，在节点组内部流量闭环。</p>
+<p>        目前Kubeedge只支持使用apps.kubeedge.io/service-topology: “range-nodegroup”，不支持其他值。</p>
+<p>（4）SSH Proxy</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">需要免密，通过节点名称进行连接</span></span><br><span class="line">ssh -p10022 -o &quot;ProxyCommand nc -X 5 -x 169.254.96.16:10800 %h %p&quot; root@edge-10.xxx.xx.x</span><br></pre></td></tr></table></figure>
+
+<h6 id="Prometheus（Agent）"><a href="#Prometheus（Agent）" class="headerlink" title="Prometheus（Agent）"></a>Prometheus（Agent）</h6><p>      Prometheus agent模式。断网支持本地缓存指标，恢复后，继续通过remote write远程发送指标到监控系统。</p>
+<blockquote>
+<p>curl <a target="_blank" rel="noopener" href="http://127.0.0.1:10350/metrics/cadvisor">http://127.0.0.1:10350/metrics/cadvisor</a></p>
+<p>curl <a target="_blank" rel="noopener" href="http://127.0.0.1:10350/metrics">http://127.0.0.1:10350/metrics</a></p>
+</blockquote>
+<h6 id="Otel-Collector-Agent"><a href="#Otel-Collector-Agent" class="headerlink" title="Otel Collector Agent"></a>Otel Collector Agent</h6><p>    <a target="_blank" rel="noopener" href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver">Otel file receiver</a> 开启File Storage Extension，断网支持本地文件缓存，恢复后，上报给云端。</p>
+<h4 id="Windows"><a href="#Windows" class="headerlink" title="Windows"></a>Windows</h4><p>    操作系统暂定支持win11，因Windows容器存在诸多问题：支持度低，功能不兼容，Linux操作系统下的许多特性无法实现，因此使用WSL部署边缘服务，以期实现Windows使用与Linux相同的方案和组件，简化负担，增强兼容性。</p>
+<h5 id="WSL"><a href="#WSL" class="headerlink" title="WSL"></a>WSL</h5><p>    安装WSL2，使用虚拟网络，开机启动。</p>
+<blockquote>
+<p>除需要额外安装启动WSL之外，其它组件，可采用与Linux相同的组件，运行在WSL中。</p>
+</blockquote>
+<h5 id="主机端口"><a href="#主机端口" class="headerlink" title="主机端口"></a>主机端口</h5><p>    使用netsh，将Service的NodePort端口全部映射到宿主机。打通宿主机到WSL的网络访问。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">查看当前端口映射</span></span><br><span class="line">netsh interface portproxy show all</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">映射端口到主机，可设置范围，例如映射Service NodPort的30000~32767范围端口</span></span><br><span class="line">netsh interface portproxy add v4tov4 listenport=22 listenaddress=0.0.0.0 connectport=22 connectaddress=172.23.22.218</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">清空所有映射</span></span><br><span class="line">netsh interface portproxy reset    </span><br></pre></td></tr></table></figure>
+
+<h4 id="入口流量"><a href="#入口流量" class="headerlink" title="入口流量"></a>入口流量</h4><h5 id="Keepalived-VIP"><a href="#Keepalived-VIP" class="headerlink" title="Keepalived VIP"></a>Keepalived VIP</h5><p>    受限于边缘侧服务器配置和应用数量，仅使用四层网络转发至Service的NodePort，使用端口区分应用，为了达到高可用、故障转移的能力，可以使用Keepalived VIP将多台机器组成一个集群，来达到客户端使用同一IP端口访问，在故障时，无需更改客户端，即可自动切换。</p>
+<h5 id="流量闭环"><a href="#流量闭环" class="headerlink" title="流量闭环"></a>流量闭环</h5><p>    主要使用EdgeMesh Service Topology的能力。</p>
+<h4 id="GPU能力"><a href="#GPU能力" class="headerlink" title="GPU能力"></a>GPU能力</h4><p>    边缘节点显卡能力一般，暂不考虑对GPU进行虚拟化，进行显存和算力切分的能力。</p>
+<p>    在WSL中，仍然可以使用宿主机的显卡进行加速。</p>
+<p>    <a target="_blank" rel="noopener" href="https://docs.nvidia.com/cuda/wsl-user-guide/index.html">CUDA on WSL User Guide — CUDA on WSL 13.2 documentation</a></p>
+<h1 id="QA"><a href="#QA" class="headerlink" title="QA"></a>QA</h1><ol>
+<li><p>应用层通过EdgeApplication + NodeGroup来实现应用按节点组下发，并支持差异化配置。这里不赘述。</p>
+</li>
+<li><p>边缘节点in-cluster能力开启，支持边缘Pod使用ServiceAccount + RBAC来访问部分资源。</p>
+<p><a target="_blank" rel="noopener" href="https://kubeedge.io/zh/docs/advanced/inclusterconfig">https://kubeedge.io/zh/docs/advanced/inclusterconfig</a></p>
+</li>
+<li><p>启用EdgeMesh后，使用Service的NodePort是否可以在同一个节点组的不同节点的多个应用实例间负载均衡</p>
+</li>
+</ol>
+<p>       可以，但是EdgeMesh如果通过SA去访问Apiserver，会受SA在边缘节点下发不稳定的影响。</p>
+<ol start="3">
+<li>使用HostNetwork的部署存在的问题</li>
+</ol>
+<p>    （1）无法滚动更新，需要采取先删后建的滚动更新策略，流量无损需要依赖外部的健康检查。</p>
+<p>    （2）无法在同一个服务器上部署多副本。</p>
+<ol start="4">
+<li>关于SA RBAC下发异常说明</li>
+</ol>
+<p>        EdgeMesh、Flannel使用SA的权限去EdgeCore的Metaserver获取数据，如果SA RBAC下发异常，会导致问题。在生产上开启了EdgeCore的featureGates.requireAuthorization=true，以观后效。也可以关闭EdgeCore的featureGates.requireAuthorization（这样就没法在边缘节点使用in-cluster的能力），可以改造Flannel，通过http直连本机Metaserver（127.0.0.1:10550）的方式（不需要认证）单独为边缘节点部署Flannel。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br><span class="line">205</span><br><span class="line">206</span><br><span class="line">207</span><br><span class="line">208</span><br><span class="line">209</span><br><span class="line">210</span><br><span class="line">211</span><br><span class="line">212</span><br><span class="line">213</span><br><span class="line">214</span><br><span class="line">215</span><br><span class="line">216</span><br><span class="line">217</span><br><span class="line">218</span><br><span class="line">219</span><br><span class="line">220</span><br><span class="line">221</span><br><span class="line">222</span><br><span class="line">223</span><br><span class="line">224</span><br></pre></td><td class="code"><pre><span class="line">kubectl --context qd-ali-edge-prod config view --raw --minify &gt; config</span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改Apiserver的链接地址为：http://127.0.0.1:10550</span></span><br><span class="line">kubectl --context qd-ali-edge-prod create cm kube-config -n kubeedge --from-file=configkubectl --context qd-ali-edge-prod apply -f kube-flannel.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># kube-flannel.yaml</span></span><br><span class="line">apiVersion: v1</span><br><span class="line">kind: Namespace</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    k8s-app: flannel</span><br><span class="line">    pod-security.kubernetes.io/enforce: privileged</span><br><span class="line">  name: kubeedge</span><br><span class="line">---</span><br><span class="line">apiVersion: v1</span><br><span class="line">kind: ServiceAccount</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    k8s-app: flannel</span><br><span class="line">  name: flannel</span><br><span class="line">  namespace: kubeedge</span><br><span class="line">---</span><br><span class="line">apiVersion: rbac.authorization.k8s.io/v1</span><br><span class="line">kind: ClusterRole</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    k8s-app: flannel</span><br><span class="line">  name: kubeedge</span><br><span class="line">rules:</span><br><span class="line">- apiGroups:</span><br><span class="line">  - <span class="string">&quot;&quot;</span></span><br><span class="line">  resources:</span><br><span class="line">  - pods</span><br><span class="line">  verbs:</span><br><span class="line">  - get</span><br><span class="line">- apiGroups:</span><br><span class="line">  - <span class="string">&quot;&quot;</span></span><br><span class="line">  resources:</span><br><span class="line">  - nodes</span><br><span class="line">  verbs:</span><br><span class="line">  - get</span><br><span class="line">  - list</span><br><span class="line">  - watch</span><br><span class="line">- apiGroups:</span><br><span class="line">  - <span class="string">&quot;&quot;</span></span><br><span class="line">  resources:</span><br><span class="line">  - nodes/status</span><br><span class="line">  verbs:</span><br><span class="line">  - patch</span><br><span class="line">---</span><br><span class="line">apiVersion: rbac.authorization.k8s.io/v1</span><br><span class="line">kind: ClusterRoleBinding</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    k8s-app: flannel</span><br><span class="line">  name: flannel</span><br><span class="line">roleRef:</span><br><span class="line">  apiGroup: rbac.authorization.k8s.io</span><br><span class="line">  kind: ClusterRole</span><br><span class="line">  name: flannel</span><br><span class="line">subjects:</span><br><span class="line">- kind: ServiceAccount</span><br><span class="line">  name: flannel</span><br><span class="line">  namespace: kubeedge</span><br><span class="line">---</span><br><span class="line">apiVersion: v1</span><br><span class="line">data:</span><br><span class="line">  cni-conf.json: |</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="string">&quot;name&quot;</span>: <span class="string">&quot;cbr0&quot;</span>,</span><br><span class="line">      <span class="string">&quot;cniVersion&quot;</span>: <span class="string">&quot;0.3.1&quot;</span>,</span><br><span class="line">      <span class="string">&quot;plugins&quot;</span>: [</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="string">&quot;type&quot;</span>: <span class="string">&quot;flannel&quot;</span>,</span><br><span class="line">          <span class="string">&quot;delegate&quot;</span>: &#123;</span><br><span class="line">            <span class="string">&quot;hairpinMode&quot;</span>: <span class="literal">true</span>,</span><br><span class="line">            <span class="string">&quot;isDefaultGateway&quot;</span>: <span class="literal">true</span></span><br><span class="line">          &#125;</span><br><span class="line">        &#125;,</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="string">&quot;type&quot;</span>: <span class="string">&quot;portmap&quot;</span>,</span><br><span class="line">          <span class="string">&quot;capabilities&quot;</span>: &#123;</span><br><span class="line">            <span class="string">&quot;portMappings&quot;</span>: <span class="literal">true</span></span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">      ]</span><br><span class="line">    &#125;</span><br><span class="line">  net-conf.json: |</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="string">&quot;Network&quot;</span>: <span class="string">&quot;172.29.0.0/16&quot;</span>,</span><br><span class="line">      <span class="string">&quot;EnableNFTables&quot;</span>: <span class="literal">false</span>,</span><br><span class="line">      <span class="string">&quot;Backend&quot;</span>: &#123;</span><br><span class="line">        <span class="string">&quot;Type&quot;</span>: <span class="string">&quot;vxlan&quot;</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">kind: ConfigMap</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    app: flannel</span><br><span class="line">    k8s-app: flannel</span><br><span class="line">    tier: node</span><br><span class="line">  name: kube-flannel-cfg</span><br><span class="line">  namespace: kubeedge</span><br><span class="line">---</span><br><span class="line">apiVersion: apps/v1</span><br><span class="line">kind: DaemonSet</span><br><span class="line">metadata:</span><br><span class="line">  labels:</span><br><span class="line">    app: flannel</span><br><span class="line">    k8s-app: flannel</span><br><span class="line">    tier: node</span><br><span class="line">  name: kube-flannel-ds</span><br><span class="line">  namespace: kubeedge</span><br><span class="line">spec:</span><br><span class="line">  selector:</span><br><span class="line">    matchLabels:</span><br><span class="line">      app: flannel</span><br><span class="line">      k8s-app: flannel</span><br><span class="line">  template:</span><br><span class="line">    metadata:</span><br><span class="line">      labels:</span><br><span class="line">        app: flannel</span><br><span class="line">        k8s-app: flannel</span><br><span class="line">        tier: node</span><br><span class="line">    spec:</span><br><span class="line">      affinity:</span><br><span class="line">        nodeAffinity:</span><br><span class="line">          requiredDuringSchedulingIgnoredDuringExecution:</span><br><span class="line">            nodeSelectorTerms:</span><br><span class="line">            - matchExpressions:</span><br><span class="line">              - key: node-role.kubernetes.io/edge</span><br><span class="line">                operator: Exists</span><br><span class="line">      containers:</span><br><span class="line">      - args:</span><br><span class="line">        - --ip-masq</span><br><span class="line">        - --kube-subnet-mgr</span><br><span class="line">        - --kubeconfig-file=/etc/kube-config/config</span><br><span class="line">        <span class="built_in">command</span>:</span><br><span class="line">        - /opt/bin/flanneld</span><br><span class="line">        <span class="built_in">env</span>:</span><br><span class="line">        - name: POD_NAME</span><br><span class="line">          valueFrom:</span><br><span class="line">            fieldRef:</span><br><span class="line">              fieldPath: metadata.name</span><br><span class="line">        - name: POD_NAMESPACE</span><br><span class="line">          valueFrom:</span><br><span class="line">            fieldRef:</span><br><span class="line">              fieldPath: metadata.namespace</span><br><span class="line">        - name: EVENT_QUEUE_DEPTH</span><br><span class="line">          value: <span class="string">&quot;5000&quot;</span></span><br><span class="line">        - name: CONT_WHEN_CACHE_NOT_READY</span><br><span class="line">          value: <span class="string">&quot;false&quot;</span></span><br><span class="line">        image: <span class="string">&quot;reg.xxx.xxx/release/flannel:v0.28.1&quot;</span></span><br><span class="line">        name: kube-flannel</span><br><span class="line">        resources:</span><br><span class="line">          requests:</span><br><span class="line">            cpu: 100m</span><br><span class="line">            memory: 50Mi</span><br><span class="line">        securityContext:</span><br><span class="line">          capabilities:</span><br><span class="line">            add:</span><br><span class="line">            - NET_ADMIN</span><br><span class="line">            - NET_RAW</span><br><span class="line">          privileged: <span class="literal">false</span></span><br><span class="line">        volumeMounts:</span><br><span class="line">        - mountPath: /run/flannel</span><br><span class="line">          name: run</span><br><span class="line">        - mountPath: /etc/kube-flannel/</span><br><span class="line">          name: flannel-cfg</span><br><span class="line">        - mountPath: /etc/kube-config/</span><br><span class="line">          name: kube-config</span><br><span class="line">        - mountPath: /run/xtables.lock</span><br><span class="line">          name: xtables-lock</span><br><span class="line">      hostNetwork: <span class="literal">true</span></span><br><span class="line">      initContainers:</span><br><span class="line">      - args:</span><br><span class="line">        - -f</span><br><span class="line">        - /flannel</span><br><span class="line">        - /opt/cni/bin/flannel</span><br><span class="line">        <span class="built_in">command</span>:</span><br><span class="line">        - <span class="built_in">cp</span></span><br><span class="line">        image: <span class="string">&quot;reg.xxx.xxx/release/flannel-cni-plugin:v1.9.0-flannel1&quot;</span></span><br><span class="line">        name: install-cni-plugin</span><br><span class="line">        volumeMounts:</span><br><span class="line">        - mountPath: /opt/cni/bin</span><br><span class="line">          name: cni-plugin</span><br><span class="line">      - args:</span><br><span class="line">        - -f</span><br><span class="line">        - /etc/kube-flannel/cni-conf.json</span><br><span class="line">        - /etc/cni/net.d/10-flannel.conflist</span><br><span class="line">        <span class="built_in">command</span>:</span><br><span class="line">        - <span class="built_in">cp</span></span><br><span class="line">        image: <span class="string">&quot;reg.xxx.xxx/release/flannel:v0.28.1&quot;</span></span><br><span class="line">        name: install-cni</span><br><span class="line">        volumeMounts:</span><br><span class="line">        - mountPath: /etc/cni/net.d</span><br><span class="line">          name: cni</span><br><span class="line">        - mountPath: /etc/kube-flannel/</span><br><span class="line">          name: flannel-cfg</span><br><span class="line">      priorityClassName: system-node-critical</span><br><span class="line">      serviceAccountName: flannel</span><br><span class="line">      tolerations:</span><br><span class="line">      - effect: NoSchedule</span><br><span class="line">        operator: Exists</span><br><span class="line">      volumes:</span><br><span class="line">      - hostPath:</span><br><span class="line">          path: /run/flannel</span><br><span class="line">        name: run</span><br><span class="line">      - hostPath:</span><br><span class="line">          path: /opt/cni/bin</span><br><span class="line">        name: cni-plugin</span><br><span class="line">      - hostPath:</span><br><span class="line">          path: /etc/cni/net.d</span><br><span class="line">        name: cni</span><br><span class="line">      - configMap:</span><br><span class="line">          name: kube-flannel-cfg</span><br><span class="line">        name: flannel-cfg</span><br><span class="line">      - configMap:</span><br><span class="line">          name: kube-config</span><br><span class="line">        name: kube-config</span><br><span class="line">      - hostPath:</span><br><span class="line">          path: /run/xtables.lock</span><br><span class="line">          <span class="built_in">type</span>: FileOrCreate</span><br><span class="line">        name: xtables-lock</span><br></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/kubeedge/kubeedge/pull/6673">https://github.com/kubeedge/kubeedge/pull/6673</a></p>
+<blockquote>
+<p>目前这种的处理办法，可删除对应的ServiceAccountAccess对象，并下发一个使用该SA的Pod（如果是Flannel，需要使用一个hostNetwork=true的Pod）到下发异常的节点上，有很大概率能成功下发，并保存在Sqlite数据库中，来临时处理该问题</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/KubeEdge/" rel="tag"># KubeEdge</a>
+              <a href="/tags/EdgeMesh/" rel="tag"># EdgeMesh</a>
+              <a href="/tags/EdgeCore/" rel="tag"># EdgeCore</a>
+              <a href="/tags/Edge/" rel="tag"># Edge</a>
+              <a href="/tags/WSL/" rel="tag"># WSL</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2026/01/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%BA%94%E7%94%A8/" rel="prev" title="大模型技术-应用开发">
+      <i class="fa fa-chevron-left"></i> 大模型技术-应用开发
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88"><span class="nav-number">2.</span> <span class="nav-text">技术方案</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%83%A8%E7%BD%B2"><span class="nav-number">2.1.</span> <span class="nav-text">部署</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%91%E7%AB%AF"><span class="nav-number">2.1.1.</span> <span class="nav-text">云端</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%87%AA%E5%BB%BAK8s"><span class="nav-number">2.1.1.1.</span> <span class="nav-text">自建K8s</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%8E%A7%E5%88%B6%E9%9D%A2"><span class="nav-number">2.1.1.2.</span> <span class="nav-text">控制面</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BE%B9%E7%BC%98%E8%8A%82%E7%82%B9"><span class="nav-number">2.1.2.</span> <span class="nav-text">边缘节点</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Linux"><span class="nav-number">2.1.2.1.</span> <span class="nav-text">Linux</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%BF%90%E8%A1%8C%E6%97%B6"><span class="nav-number">2.1.2.1.1.</span> <span class="nav-text">运行时</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#EdgeCore"><span class="nav-number">2.1.2.1.2.</span> <span class="nav-text">EdgeCore</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#AddOns"><span class="nav-number">2.1.2.1.3.</span> <span class="nav-text">AddOns</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#EdgeMesh"><span class="nav-number">2.1.2.1.3.1.</span> <span class="nav-text">EdgeMesh</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#Prometheus%EF%BC%88Agent%EF%BC%89"><span class="nav-number">2.1.2.1.3.2.</span> <span class="nav-text">Prometheus（Agent）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#Otel-Collector-Agent"><span class="nav-number">2.1.2.1.3.3.</span> <span class="nav-text">Otel Collector Agent</span></a></li></ol></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Windows"><span class="nav-number">2.1.2.2.</span> <span class="nav-text">Windows</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#WSL"><span class="nav-number">2.1.2.2.1.</span> <span class="nav-text">WSL</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%B8%BB%E6%9C%BA%E7%AB%AF%E5%8F%A3"><span class="nav-number">2.1.2.2.2.</span> <span class="nav-text">主机端口</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%A5%E5%8F%A3%E6%B5%81%E9%87%8F"><span class="nav-number">2.1.2.3.</span> <span class="nav-text">入口流量</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#Keepalived-VIP"><span class="nav-number">2.1.2.3.1.</span> <span class="nav-text">Keepalived VIP</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%B5%81%E9%87%8F%E9%97%AD%E7%8E%AF"><span class="nav-number">2.1.2.3.2.</span> <span class="nav-text">流量闭环</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#GPU%E8%83%BD%E5%8A%9B"><span class="nav-number">2.1.2.4.</span> <span class="nav-text">GPU能力</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#QA"><span class="nav-number">3.</span> <span class="nav-text">QA</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">39</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">84</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2026</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'Ov23li2RKrPIAmFLysIK',
+      clientSecret: '82e3a65c3737ce4fa8e9beab672138f4617f3143',
+      repo        : 'shadow802.github.io',
+      owner       : 'shadow802',
+      admin       : ['shadow802'],
+      id          : '547752299450f024cd93867851acc58c',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>

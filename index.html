@@ -160,6 +160,91 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/" class="post-title-link" itemprop="url">KubeEdge边缘部署</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2026-05-08 00:00:00" itemprop="dateCreated datePublished" datetime="2026-05-08T00:00:00+08:00">2026-05-08</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Architecture/" itemprop="url" rel="index"><span itemprop="name">Architecture</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>    在制造业领域，需要在各区域的工厂中，利用有限的硬件，部署应用服务，这些服务与常规K8s的服务不同，除了要满足自动批量、灰度部署之外，还具备如下特别：</p>
+<ul>
+<li><p>弱网自治：工厂与集团网络发生异常，工厂不停工，即用户部署的应用要在工厂的内部硬件和网络正常运作。</p>
+</li>
+<li><p>应用部署：应用版本的一键发布，同时支持单个工厂的差异化部署（例如版本灰度）。</p>
+</li>
+<li><p>流量闭环：工厂的访问流量，都在工厂内部的服务器、网络、应用之内，不得依赖外部。</p>
+</li>
+<li><p>可观测性：工厂的服务器，节假日期间会停机，需要有统一的日志、监控查询能力。</p>
+</li>
+</ul>
+<h1 id="技术方案"><a href="#技术方案" class="headerlink" title="技术方案"></a>技术方案</h1><p>    书接上文<a href="https://shadow802.github.io/2024/02/29/%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/">边缘部署方案 | 人生如梦 对酒当歌</a>，因<a target="_blank" rel="noopener" href="https://github.com/openyurtio/openyurt">OpenYurt</a>已经超过2年不维护，因此选用了CNCF已经毕业的项目<a target="_blank" rel="noopener" href="https://kubeedge.io/docs/">KubeEdge</a>。</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2026/05/08/KubeEdge%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2026/01/12/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%8A%80%E6%9C%AF-%E6%A8%A1%E5%9E%8B%E5%BA%94%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -859,91 +944,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2024/02/29/%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="Shadow">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="人生如梦 对酒当歌">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2024/02/29/%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/" class="post-title-link" itemprop="url">边缘部署方案</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2024-02-29 00:00:00" itemprop="dateCreated datePublished" datetime="2024-02-29T00:00:00+08:00">2024-02-29</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Architecture/" itemprop="url" rel="index"><span itemprop="name">Architecture</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="需求分析"><a href="#需求分析" class="headerlink" title="需求分析"></a>需求分析</h1><h2 id="用户需求"><a href="#用户需求" class="headerlink" title="用户需求"></a>用户需求</h2><p>    园区-工厂的网络、硬件存在特殊性，用户需要利用存量的硬件完成应用的自动部署+灰度部署，保障稳定性：</p>
-<ol>
-<li><p>弱网自治：工厂与集团网络发生异常，工厂不停工，即用户部署的应用要在工厂的内部硬件和网络正常运作。</p>
-</li>
-<li><p>应用部署管理：实现应用版本的一键发布，同时支持单个工厂粒度的版本灰度。</p>
-</li>
-<li><p>流量工厂内部闭环：前期因硬件资源问题，保证工厂的应用、流量访问都在工厂内部的硬件和网络上。后期可扩展支持园区流量打散。</p>
-</li>
-<li><p>可观测性：支持通过平台UI查询日志、监控数据。</p>
-</li>
-</ol>
-<h2 id="非功能性需求"><a href="#非功能性需求" class="headerlink" title="非功能性需求"></a>非功能性需求</h2>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2024/02/29/%E8%BE%B9%E7%BC%98%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1013,7 +1013,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-count">39</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -1026,7 +1026,7 @@
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">81</span>
+        <span class="site-state-item-count">84</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
