@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"shadow802.github.io","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"gitalk","storage":true,"lazyload":true,"nav":{"gitalk":{"order":-1}},"activeClass":"gitalk"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="前言​    模型能力突飞猛进，Claude Code大量删除系统提示词适配新模型能力，通过消融实验来观察每段提示词对新模型的影响。并声称已经无法在新模型上复现提示词注入的攻击。 ​    Boris Cherny: We Cut 80% of Claude Code’s Prompt ​    围绕大模型开发，涌现了大量的新名词：Prompt Engineering → Context Engi">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Harness开发流程">
+<meta property="og:url" content="https://shadow802.github.io/2026/08/03/Harness%E5%BC%80%E5%8F%91%E6%B5%81%E7%A8%8B/index.html">
+<meta property="og:site_name" content="人生如梦 对酒当歌">
+<meta property="og:description" content="前言​    模型能力突飞猛进，Claude Code大量删除系统提示词适配新模型能力，通过消融实验来观察每段提示词对新模型的影响。并声称已经无法在新模型上复现提示词注入的攻击。 ​    Boris Cherny: We Cut 80% of Claude Code’s Prompt ​    围绕大模型开发，涌现了大量的新名词：Prompt Engineering → Context Engi">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shadow802.github.io/2026/08/03/Harness%E5%BC%80%E5%8F%91%E6%B5%81%E7%A8%8B/Harness%E5%BC%80%E5%8F%91.png">
+<meta property="og:image" content="https://shadow802.github.io/2026/08/03/Harness%E5%BC%80%E5%8F%91%E6%B5%81%E7%A8%8B/Harness%E5%BC%80%E5%8F%91.png">
+<meta property="article:published_time" content="2026-08-02T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-02T16:00:00.000Z">
+<meta property="article:author" content="Shadow">
+<meta property="article:tag" content="Agent">
+<meta property="article:tag" content="OpenCode">
+<meta property="article:tag" content="Harness">
+<meta property="article:tag" content="Skill">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shadow802.github.io/2026/08/03/Harness%E5%BC%80%E5%8F%91%E6%B5%81%E7%A8%8B/Harness%E5%BC%80%E5%8F%91.png">
+
+<link rel="canonical" href="https://shadow802.github.io/2026/08/03/Harness%E5%BC%80%E5%8F%91%E6%B5%81%E7%A8%8B/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Harness开发流程 | 人生如梦 对酒当歌</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">人生如梦 对酒当歌</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://shadow802.github.io/2026/08/03/Harness%E5%BC%80%E5%8F%91%E6%B5%81%E7%A8%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Shadow">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="人生如梦 对酒当歌">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Harness开发流程
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2026-08-03 00:00:00" itemprop="dateCreated datePublished" datetime="2026-08-03T00:00:00+08:00">2026-08-03</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/AI/" itemprop="url" rel="index"><span itemprop="name">AI</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>​    模型能力突飞猛进，Claude Code大量删除系统提示词适配新模型能力，通过消融实验来观察每段提示词对新模型的影响。并声称已经无法在新模型上复现提示词注入的攻击。</p>
+<p>​    <a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=qyPCVqFUyDo"><strong>Boris Cherny: We Cut 80% of Claude Code’s Prompt</strong></a></p>
+<p>​    围绕大模型开发，涌现了大量的新名词：Prompt Engineering → Context Engineering → Harness Engineering、本体论等。对于这些概念，如果仅停留在字面定义和理论层面，往往晦涩难懂，甚至容易陷入”概念理解了，但不知道如何落地”的困境。真正理解这些概念，需要将其放回实际的开发过程中，通过具体的工程实践寻找与之对应的具象化实体：一个 Prompt、一段 Context、一套 Harness、一组 Tool，甚至是一套完整的 Agent Runtime。只有当抽象概念与具体的工程实践建立起对应关系，才能真正理解这些概念背后的设计思想，以及它们试图解决的实际问题。</p>
+<h1 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h1><p>​    基于实际工作的需要：</p>
+<ul>
+<li><p>分析了OpenCode以及使用OpenCode开发的一个SRE智能体。</p>
+</li>
+<li><p>设计并编写了K8s容器平台上关于网关的Skill。</p>
+<p>总结了一些智能体Harness开发相关的流程，如下图所示：</p>
+</li>
+</ul>
+<p><img src="Harness%E5%BC%80%E5%8F%91.png" alt="Harness开发"></p>
+<p>​    关于智能体Harness开发，主要从四个方面来说：</p>
+<h2 id="需求"><a href="#需求" class="headerlink" title="需求"></a>需求</h2><h3 id="结构化数据"><a href="#结构化数据" class="headerlink" title="结构化数据"></a>结构化数据</h3><p>​    在明确了业务场景和目标后，应该以标准结构化的数据结构，来描述智能体的输入和输出，可以采用YAML、JSON、XML、Markdown文档等形式；结构化的数据，有利于智能体快速理解意图和目标，不容易产生歧义。这里称之为契约，也就是schema。</p>
+<h3 id="评测集"><a href="#评测集" class="headerlink" title="评测集"></a>评测集</h3><p>​    同时根据已有的场景和目标，可以很容易构建出<strong>评测的数据集</strong>，其中最主要的是：</p>
+<ol>
+<li>正向测试：确保智能体能准确实现业务目标，提升准确率。</li>
+<li>工具调用：判断工具是否正常被调用，并符合调用结果预期。</li>
+<li>历史缺陷：不断被补充的测试集，保证已经出现的问题，在后续版本迭代中不会再次出现。</li>
+</ol>
+<h2 id="设计"><a href="#设计" class="headerlink" title="设计"></a>设计</h2><p>​    智能体设计，关系到智能体最后业务目标的达成效果。</p>
+<h3 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h3><p>​    从架构上，目前主流实现有两种：</p>
+<ul>
+<li>Agent：无固定流程，需要借助模型的规划能力或者不断执行、观察寻找合适的实现的场景。</li>
+<li>Workflow：适合有明确步骤、流程、前后依赖的场景。例如LangGraph的DAG。</li>
+</ul>
+<p>​    Agent又分为单Agent和多Agent。</p>
+<p>​    多Agent实现方案中，往往有一个Agent负责规划、分配、协调整体流程。有通过A2A做Agent通信的，这样每个Agent都单独负责一个专业领域，提供能力供其他Agent使用。也有主Agent单独启用SubAgent负责某个具体的事情，完成后自动销毁的。多Agent架构优点在于各司其职，能在复杂的场景中分工明确（不污染上下文），并发执行（提高效率），最终得到理想的结果。缺点在于A2A通信机制复杂，架构繁重。</p>
+<p>​    单Agent的实现，有提供SDK重度依赖编码的，例如Pi和LangGraph；也有一些轻量级开源框架，例如OpenCode，只需要编写配置和Markdown文档，即可轻松实现。</p>
+<h4 id="本体论"><a href="#本体论" class="headerlink" title="本体论"></a>本体论</h4><p>​    每个智能体，都有自己的世界观，它认识世界的方式，是开发者定义的。在垂直领域，智能体所负责的模块中，应当以简练的语言，清晰的表述：图表、架构图、流程图、结构化文本等，向Agent传递它所需要的领域宏观知识，以让它对所负责的领域中的专业术语、实体关系、工作流程、工作边界有清晰的认识。给它塑造人格和灵魂。也就是我们常说要做什么事情的业务知识。</p>
+<h4 id="约束"><a href="#约束" class="headerlink" title="约束"></a>约束</h4><p>​    这属于安全的范畴，对于权限、边界做一个整体的陈述。明令禁止的。</p>
+<h3 id="模型"><a href="#模型" class="headerlink" title="模型"></a>模型</h3><p>​    模型，是智能体的大脑，既要智力够用，又要考虑安全、成本等一些问题，需要物美价廉，而不是杀鸡用牛刀（浪费token）或者小马拉大车（再牛的Harness也只能治标不治本）。</p>
+<p>​    常见的比如编码能力，公认的Claude Code，国内可替代的GLM 5.2、Kimi k3。综合能力ChatGPT，国内的DeepSeek（量大管饱）。还有一些专门用来做视觉、图片、视频生成的模型。可通过<a target="_blank" rel="noopener" href="https://arena.ai/leaderboard/">arena leaderboard</a>做初步筛选，并结合自身业务场景试用选择。</p>
+<h3 id="能力"><a href="#能力" class="headerlink" title="能力"></a>能力</h3><p>​    好的模型，使智能体拥有了聪明的大脑；合适的架构，使智能体拥有了完美的骨架。而扩展出来的能力，则使智能体拥有了五官、手脚，可以获取更多的信息，做更多专业的事情。</p>
+<p>​    MCP、Skill本质上都是复用的哲学，为了将数据、工具封装成统一的能力，在多个智能体共同使用，达到一次封装，到处复用的目的，Plugins只不过将MCP、Skill打包在了一起，方便分发。</p>
+<p>​    在低代码的开发框架中，可以在智能体执行的整个生命周期中打桩，进行一些个性化的灵活的自定义操作。例如监听某个事件，在智能体循环开始或者结束时做一些操作。</p>
+<p>​    链路和日志，为智能体执行历史提供了审计的能力，在安全的大背景下，这个能力尤为重要。</p>
+<p>​    像OpenCode这种高代码智能体框架，内置了许多Slash命令，并支持扩展自定义Slash命令，这在TUI上应用广泛。</p>
+<h3 id="安全"><a href="#安全" class="headerlink" title="安全"></a>安全</h3><p>​    安全，是一个非常重要的功能，需要合理设置权限，明确智能体的处理边界，避免因幻觉或者是不可控的因素导致的安全事故。安全的约束，遍布于智能体的系统提示词（有些以MarkDown文件保存）、Skill的能力约束、隔离的级别；必要时，需及时引入人工二次确认和授权。</p>
+<h3 id="记忆"><a href="#记忆" class="headerlink" title="记忆"></a>记忆</h3><p>​    记忆的管理，目前低代码编程框架和高代码开源框架均有默认处理，在必要情况下，开发者也可以自行扩展。记忆目前常见于存放文件、SQLite数据库等，高阶的有向量数据库、图数据库、知识图谱等。</p>
+<h2 id="上线"><a href="#上线" class="headerlink" title="上线"></a>上线</h2><p>​    智能体最终是要开放自己，为用户提供服务。</p>
+<h3 id="服务方式"><a href="#服务方式" class="headerlink" title="服务方式"></a>服务方式</h3><p>​    目前主流的服务方式：</p>
+<ul>
+<li>编码集成：SDK、A2A</li>
+<li>图形化：UI</li>
+<li>命令行：TUI、CLI</li>
+</ul>
+<h3 id="部署方式"><a href="#部署方式" class="headerlink" title="部署方式"></a>部署方式</h3><p>​    根据安全级别，有单独启动安全沙箱，严格控制其网络权限、密钥获取及本地数据权限的。也有直接部署容器内，在同一个容器内，按会话、智能体级别进行数据隔离的。</p>
+<h2 id="回归"><a href="#回归" class="headerlink" title="回归"></a>回归</h2><p>​    回归是一个长期的过程，需要日拱一卒的坚持积累评测集，并配合上自动化回归测试来提高执行的频次和效率。害怕变更，更应该时时变更；害怕集成，更应该时时集成，坚持正确的事，将其做成一种习惯，才能克服困难，保持先进。</p>
+<h3 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h3><p>​    智能体上线后，需监控其异常情况、正确率，以纠正其行为。如果模型发生变更、或者业务场景、目标发生变化，要及时调整实现。</p>
+<h3 id="评测"><a href="#评测" class="headerlink" title="评测"></a>评测</h3><p>​    不论是新需求的迭代，还是模型变化，架构升级，都应当反向维护测试集，使测试集能覆盖更多情况，更符合业务的目标，自动反复执行，以确认新迭代的智能体的表现，不至大规模偏离原有目标。</p>
+<h3 id="优化"><a href="#优化" class="headerlink" title="优化"></a>优化</h3><p>​    新的模型，意味着更强的大脑；新的Harness架构，也可能代表着更高的准确率。没有一劳永逸的事情，都需要随着需求和技术不断推陈出新，顺应时代，贴合业务需求和目标，不断迭代自己。</p>
+<hr>
+<blockquote>
+<p>[!NOTE]</p>
+<p>以下为使用Kiro + GPT-5.6 Sol xHigh优化后的版本。<br>提示词：分析这篇技术文档，指出其中表述不准确的地方，并给出修改建议。<br>提示词：优化一下</p>
+</blockquote>
+<hr>
+<h1 id="前言-1"><a href="#前言-1" class="headerlink" title="前言"></a>前言</h1><p>随着模型能力持续提升，曾经有效的提示词和工具设计也需要被定期重新评估。Claude Code 团队通过消融实验判断既有指令是否仍有必要，并显著精简系统提示词，以减少冗余约束对新模型能力的影响。<br>围绕大模型应用开发，业界的关注范围正在从 Prompt Engineering 扩展到 Context Engineering 和 Harness Engineering。Prompt Engineering 关注指令设计，Context Engineering 关注上下文的选择、组织和更新，Harness Engineering 则关注模型外围运行系统的设计。本体论属于领域知识建模方法，可以作为上下文和知识系统的一部分。<br>参考：<a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=qyPCVqFUyDo">Boris Cherny: We Cut 80% of Claude Code’s Prompt</a></p>
+<h1 id="流程-1"><a href="#流程-1" class="headerlink" title="流程"></a>流程</h1><p>基于实际工作需要，我分析了 OpenCode 及一个基于 OpenCode 开发的 SRE Agent，并设计、编写了面向 Kubernetes 容器平台网关场景的 Agent Skill，由此总结出以下 Harness 开发流程：<br><img src="Harness%E5%BC%80%E5%8F%91.png" alt="Harness开发"><br>本文所称 Harness，是围绕模型构建的一组运行机制，包括提示词与上下文管理、Agent 循环、工具调用、权限控制、状态与记忆、评测、可观测性以及人工审批等。其开发过程可以归纳为目标与契约、Harness 设计、上线运行和持续回归四个阶段。</p>
+<h2 id="一、目标与契约"><a href="#一、目标与契约" class="headerlink" title="一、目标与契约"></a>一、目标与契约</h2><h3 id="1-输入输出契约"><a href="#1-输入输出契约" class="headerlink" title="1. 输入输出契约"></a>1. 输入输出契约</h3><p>明确业务场景和目标后，应为工具接口、系统集成边界及关键输出定义可验证的契约。JSON、YAML 和 XML 可以作为数据序列化格式，Markdown 适合承载说明性或半结构化内容；JSON Schema、OpenAPI、Protocol Buffers 或代码类型定义可以进一步描述字段、类型、约束和错误结构。<br>一份完整的契约还应明确必填字段、取值范围、错误处理、版本兼容、幂等性和敏感字段处理规则。面向用户的开放意图可以继续使用自然语言表达，在工具调用和系统交互阶段再转换为结构化数据。</p>
+<h3 id="2-评测集与指标"><a href="#2-评测集与指标" class="headerlink" title="2. 评测集与指标"></a>2. 评测集与指标</h3><p>评测集应覆盖正常任务、边界与异常输入、工具失败、多轮状态、安全攻击和历史缺陷。工具评测需要检查调用时机、工具选择、参数、顺序、重试策略及副作用是否符合预期。<br>评价指标应与任务类型匹配。除答案准确率外，还可以使用任务完成率、约束满足率、工具调用正确率、人工评分、延迟和成本。复杂任务的标准答案和评分规则通常需要领域专家参与制定。</p>
+<h2 id="二、Harness-设计"><a href="#二、Harness-设计" class="headerlink" title="二、Harness 设计"></a>二、Harness 设计</h2><h3 id="1-架构"><a href="#1-架构" class="headerlink" title="1. 架构"></a>1. 架构</h3><p>Agent 系统位于确定性工作流与模型自主决策之间的连续谱上。确定性工作流由代码预先定义步骤、分支和依赖；Agent 式执行由模型动态决定任务分解、工具选择和下一步动作；混合架构则使用工作流约束关键步骤，将局部复杂任务交给 Agent 决策。<br>LangGraph 使用状态图描述节点和状态转换，支持顺序执行、条件分支、循环和并行。单 Agent 与多 Agent 描述协作单元的数量，通用 Agent 与垂直领域 Agent 描述职责范围，这两个维度可以自由组合。<br>多 Agent 可以采用 Supervisor/Worker、路由、Handoff、并行专家或评审—执行等模式。A2A 适合跨进程、跨服务或跨组织的 Agent 互操作，同一运行时中的 SubAgent 通常由框架直接调度。多 Agent 能够隔离专业上下文、并行处理独立任务，同时也需要处理通信成本、延迟、状态一致性和错误传播等问题。<br>Agent 的实现方式还可以按抽象层次区分：LangGraph 等编排框架通过代码定义状态、节点和执行流程；OpenCode 等可配置编码 Agent 则内置 Agent 循环、工具和交互界面，并通过配置、Markdown、插件和外部工具进行扩展。</p>
+<h3 id="2-本体论与约束"><a href="#2-本体论与约束" class="headerlink" title="2. 本体论与约束"></a>2. 本体论与约束</h3><p>本体论是对领域概念、实体、属性、关系和规则的显式建模。例如在 Kubernetes 领域，可以定义 Cluster、Namespace、Workload、Pod 和 Service 等实体，以及“属于”“选择”“暴露”“调度到”等关系。本体论可以通过术语表、Schema、知识图谱或结构化文档表达，为 Agent 提供一致的领域语义。<br>Agent 的约束包括业务规则、输出契约、资源预算、权限边界和合规要求。提示词负责向模型说明行为规范，权限系统、工具参数校验、沙箱和审批机制负责执行关键约束。</p>
+<h3 id="3-模型"><a href="#3-模型" class="headerlink" title="3. 模型"></a>3. 模型</h3><p>模型选型应明确到具体模型和版本，并结合自身评测集，从任务能力、工具调用、上下文长度、延迟、Token 价格、吞吐量、部署方式、数据合规和稳定性等方面综合比较。<br>通用排行榜可以用于缩小候选范围，最终选择仍应由业务评测结果决定。还可以通过模型路由，让不同难度和风险等级的任务使用不同模型，在效果、成本和响应速度之间取得平衡。</p>
+<h3 id="4-能力扩展"><a href="#4-能力扩展" class="headerlink" title="4. 能力扩展"></a>4. 能力扩展</h3><p>MCP 和 Agent Skill 都有助于能力复用，但承担不同职责。MCP 是连接 Agent 与外部工具、资源和提示模板的通信协议；Skill 是由指令、脚本和参考资源组成、可按需加载的能力包。Plugin 是特定平台定义的扩展与分发单元，可以包含代码、命令、Hook、Agent、Skill 或 MCP 配置。<br>部分平台提供生命周期 Hook，可在会话开始、工具调用前后或任务结束时执行校验、审批、日志记录等逻辑。Trace 和日志为问题定位与审计提供基础数据；正式审计还需要记录身份、授权决策和关键状态变更，并满足防篡改、脱敏、访问控制及留存要求。</p>
+<h3 id="5-安全"><a href="#5-安全" class="headerlink" title="5. 安全"></a>5. 安全</h3><p>Agent 安全应采用纵深防御。系统提示词和 Skill 用于描述行为规范，生产环境则通过工具最小权限、默认拒绝、文件与网络沙箱、密钥隔离、参数及输出校验、外部内容不可信处理、高风险操作审批、租户隔离、调用审计、资源限额和紧急停止机制建立安全边界。</p>
+<h3 id="6-状态与记忆"><a href="#6-状态与记忆" class="headerlink" title="6. 状态与记忆"></a>6. 状态与记忆</h3><p>Agent 的记忆可以分为当前上下文、会话状态和跨会话长期记忆。不同框架对此提供的能力不同，有些保存消息或 Checkpoint，有些提供持久化和长期记忆接口。完整的记忆系统还需要设计写入、检索、更新、遗忘及隐私策略。<br>文件、关系数据库、键值数据库、向量数据库和图数据库分别适合静态知识、结构化状态、快速查询、语义检索和关系遍历，应根据数据结构、一致性、查询模式、规模和合规要求选择。</p>
+<h2 id="三、上线运行"><a href="#三、上线运行" class="headerlink" title="三、上线运行"></a>三、上线运行</h2><p>Agent 可以通过 SDK、HTTP/gRPC API、A2A、Webhook 或消息队列与其他系统集成，也可以通过 Web/桌面 UI、TUI、CLI、IDE 插件或自动化任务面向用户和流程提供服务。<br>部署隔离级别应与任务风险匹配。只读、低风险任务可以采用进程内逻辑隔离；能够执行命令、修改文件或访问网络的 Agent，应优先使用独立进程、容器或微型虚拟机等沙箱。多租户场景还应隔离工作目录、凭证、网络策略、缓存和持久化数据。</p>
+<h2 id="四、监控、评测与回归"><a href="#四、监控、评测与回归" class="headerlink" title="四、监控、评测与回归"></a>四、监控、评测与回归</h2><p>线上监控应同时覆盖系统指标、模型指标、工具指标、业务指标和安全指标，例如延迟、错误率、Token 成本、工具调用成功率、任务完成率、人工接管率和越权拦截情况。质量指标可以结合抽样标注、用户反馈和延迟获得的业务结果进行估算。<br>业务目标变化时，应版本化更新评测集和评分标准；模型、提示词或架构变化时，应在固定回归集和独立留出集上比较新旧版本。线上缺陷可以沉淀为回归样例，并持续补充新的留出样例。对存在随机性的任务，可以多次运行并比较均值、分位数和失败率。<br>新模型和新 Harness 都是候选改进，应通过离线评测、线上灰度实验以及成本、延迟和安全指标综合判断升级效果。版本控制、自动评测、发布门禁、灰度发布和快速回滚机制可以帮助系统以小批量、可验证的方式持续演进。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="https://code.claude.com/docs/en/how-claude-code-works">Claude Code 工作原理</a> · <a target="_blank" rel="noopener" href="https://docs.langchain.com/oss/javascript/langgraph/graph-api">LangGraph Graph API</a> · <a target="_blank" rel="noopener" href="https://modelcontextprotocol.io/specification/2025-06-18">MCP Specification</a> · <a target="_blank" rel="noopener" href="https://agentskills.io/home">Agent Skills Overview</a> · <a target="_blank" rel="noopener" href="https://dev.opencode.ai/docs/commands">OpenCode Commands</a> · <a target="_blank" rel="noopener" href="https://opencode.ai/docs/plugins/">OpenCode Plugins</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Agent/" rel="tag"># Agent</a>
+              <a href="/tags/OpenCode/" rel="tag"># OpenCode</a>
+              <a href="/tags/Harness/" rel="tag"># Harness</a>
+              <a href="/tags/Skill/" rel="tag"># Skill</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2026/06/23/WSL%E4%B9%8B%E6%97%85/" rel="prev" title="WSL之旅">
+      <i class="fa fa-chevron-left"></i> WSL之旅
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">流程</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%9C%80%E6%B1%82"><span class="nav-number">2.1.</span> <span class="nav-text">需求</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BB%93%E6%9E%84%E5%8C%96%E6%95%B0%E6%8D%AE"><span class="nav-number">2.1.1.</span> <span class="nav-text">结构化数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%84%E6%B5%8B%E9%9B%86"><span class="nav-number">2.1.2.</span> <span class="nav-text">评测集</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1"><span class="nav-number">2.2.</span> <span class="nav-text">设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84"><span class="nav-number">2.2.1.</span> <span class="nav-text">架构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9C%AC%E4%BD%93%E8%AE%BA"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">本体论</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BA%A6%E6%9D%9F"><span class="nav-number">2.2.1.2.</span> <span class="nav-text">约束</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.2.2.</span> <span class="nav-text">模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%83%BD%E5%8A%9B"><span class="nav-number">2.2.3.</span> <span class="nav-text">能力</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%89%E5%85%A8"><span class="nav-number">2.2.4.</span> <span class="nav-text">安全</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AE%B0%E5%BF%86"><span class="nav-number">2.2.5.</span> <span class="nav-text">记忆</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%8A%E7%BA%BF"><span class="nav-number">2.3.</span> <span class="nav-text">上线</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E6%96%B9%E5%BC%8F"><span class="nav-number">2.3.1.</span> <span class="nav-text">服务方式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F"><span class="nav-number">2.3.2.</span> <span class="nav-text">部署方式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9E%E5%BD%92"><span class="nav-number">2.4.</span> <span class="nav-text">回归</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7"><span class="nav-number">2.4.1.</span> <span class="nav-text">监控</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%AF%84%E6%B5%8B"><span class="nav-number">2.4.2.</span> <span class="nav-text">评测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%98%E5%8C%96"><span class="nav-number">2.4.3.</span> <span class="nav-text">优化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80-1"><span class="nav-number">3.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%B5%81%E7%A8%8B-1"><span class="nav-number">4.</span> <span class="nav-text">流程</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E7%9B%AE%E6%A0%87%E4%B8%8E%E5%A5%91%E7%BA%A6"><span class="nav-number">4.1.</span> <span class="nav-text">一、目标与契约</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E8%BE%93%E5%85%A5%E8%BE%93%E5%87%BA%E5%A5%91%E7%BA%A6"><span class="nav-number">4.1.1.</span> <span class="nav-text">1. 输入输出契约</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E8%AF%84%E6%B5%8B%E9%9B%86%E4%B8%8E%E6%8C%87%E6%A0%87"><span class="nav-number">4.1.2.</span> <span class="nav-text">2. 评测集与指标</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Harness-%E8%AE%BE%E8%AE%A1"><span class="nav-number">4.2.</span> <span class="nav-text">二、Harness 设计</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%9E%B6%E6%9E%84"><span class="nav-number">4.2.1.</span> <span class="nav-text">1. 架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%9C%AC%E4%BD%93%E8%AE%BA%E4%B8%8E%E7%BA%A6%E6%9D%9F"><span class="nav-number">4.2.2.</span> <span class="nav-text">2. 本体论与约束</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%A8%A1%E5%9E%8B"><span class="nav-number">4.2.3.</span> <span class="nav-text">3. 模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E8%83%BD%E5%8A%9B%E6%89%A9%E5%B1%95"><span class="nav-number">4.2.4.</span> <span class="nav-text">4. 能力扩展</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-%E5%AE%89%E5%85%A8"><span class="nav-number">4.2.5.</span> <span class="nav-text">5. 安全</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-%E7%8A%B6%E6%80%81%E4%B8%8E%E8%AE%B0%E5%BF%86"><span class="nav-number">4.2.6.</span> <span class="nav-text">6. 状态与记忆</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E4%B8%8A%E7%BA%BF%E8%BF%90%E8%A1%8C"><span class="nav-number">4.3.</span> <span class="nav-text">三、上线运行</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E7%9B%91%E6%8E%A7%E3%80%81%E8%AF%84%E6%B5%8B%E4%B8%8E%E5%9B%9E%E5%BD%92"><span class="nav-number">4.4.</span> <span class="nav-text">四、监控、评测与回归</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-number">4.5.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Shadow</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">41</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">89</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2026</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shadow</span>
+</div>
+
+<div class="powered-by">
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <i class="fa fa-user-md"></i>
+    <span id="busuanzi_container_site_uv">
+        本站访客数:<span id="busuanzi_value_site_uv"></span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_pv">
+        本站访问量<span id="busuanzi_value_site_pv"></span>
+    </span>
+</div>
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'Ov23li2RKrPIAmFLysIK',
+      clientSecret: '82e3a65c3737ce4fa8e9beab672138f4617f3143',
+      repo        : 'shadow802.github.io',
+      owner       : 'shadow802',
+      admin       : ['shadow802'],
+      id          : '846289b7c0f568b39497eab2eadb4d38',
+        language: 'zh-CN',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+</body>
+</html>
